@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────
+# DATOS SENSIBLES Y SECRETOS — NUNCA subir a GitHub
+# ─────────────────────────────────────────────────────────────
+# Base de datos (expedientes reales de menores)
+*.db
+*.db-wal
+*.db-shm
+# Archivos subidos (PDFs, dictámenes, etc.)
+backend/uploads/
+# Copias de seguridad
+backend/backups/
+# Variables de entorno (clave secreta del sistema)
+.env
+backend/.env
+
+# ─────────────────────────────────────────────────────────────
+# Dependencias y entornos (se reinstalan, no van al repo)
+# ─────────────────────────────────────────────────────────────
+backend/venv/
+venv/
+frontend/node_modules/
+node_modules/
+
+# Build del frontend (se regenera con: npm run build)
+frontend/dist/
+
+# ─────────────────────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# ─────────────────────────────────────────────────────────────
+# Sistema operativo / editores
+# ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

@@ -1,0 +1,16 @@
+<svg width="64" height="80" viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Aproximación del emblema del Ministerio Público de la Defensa.
+       Reemplazá este archivo por el logo oficial (mismo nombre) si querés el exacto. -->
+  <!-- Círculo (sol / cabeza) -->
+  <circle cx="26" cy="13" r="9" fill="#F2C94C"/>
+  <!-- Figura azul (cuerpo estilizado, gota) -->
+  <path d="M26 24
+           C 14 30, 9 46, 13 60
+           C 16 70, 24 74, 26 74
+           C 28 74, 36 70, 39 60
+           C 43 46, 38 30, 26 24 Z"
+        fill="#9CB7D4"/>
+  <!-- Acento triangular inferior (celeste) -->
+  <path d="M22 62 L26 74 L30 62 Z" fill="#Bcd4e8" opacity="0.9"/>
+  <path d="M22 62 L26 74 L30 62 Z" fill="#7FA8CC"/>
+</svg>
