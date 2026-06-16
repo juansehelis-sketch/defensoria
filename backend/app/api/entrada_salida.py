@@ -235,18 +235,30 @@ async def eliminar_entrada_salida(
     if not entrada:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro no encontrado")
 
-    # Guardar copia en la papelera antes de borrar
-    db.add(BorradoListado(
-        fecha=entrada.fecha,
-        juzgado=entrada.juzgado,
-        numero_expediente=entrada.numero_expediente,
-        autos=entrada.autos,
-        asignacion=entrada.asignacion,
-        observaciones=entrada.observaciones,
-        borrado_por=usuario.nombre,
-    ))
-    db.delete(entrada)
-    db.commit()
+    # Capturar los datos antes de tocar la sesión
+    snap = {
+        "fecha": entrada.fecha,
+        "juzgado": entrada.juzgado,
+        "numero_expediente": entrada.numero_expediente,
+        "autos": entrada.autos,
+        "asignacion": entrada.asignacion,
+        "observaciones": entrada.observaciones,
+        "borrado_por": usuario.nombre,
+    }
+
+    # Guardar copia en la papelera (best-effort: si falla, igual se borra la fila)
+    try:
+        db.add(BorradoListado(**snap))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[!] No se pudo registrar en la papelera: {e}")
+
+    # Borrar la fila
+    entrada = db.query(EntradaSalida).filter(EntradaSalida.id == entrada_id).first()
+    if entrada:
+        db.delete(entrada)
+        db.commit()
     return {"message": "Registro eliminado"}
 
 
