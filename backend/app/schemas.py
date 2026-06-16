@@ -141,6 +141,21 @@ class EntradaSalida(EntradaSalidaBase):
         from_attributes = True
 
 
+class BorradoListado(BaseModel):
+    id: int
+    fecha: Optional[date] = None
+    juzgado: Optional[str] = None
+    numero_expediente: Optional[str] = None
+    autos: Optional[str] = None
+    asignacion: Optional[str] = None
+    observaciones: Optional[str] = None
+    borrado_por: Optional[str] = None
+    fecha_borrado: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ═══════════════════════════════════════════════════════════════
 # AUDIENCIAS
 # ═══════════════════════════════════════════════════════════════

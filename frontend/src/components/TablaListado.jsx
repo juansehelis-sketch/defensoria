@@ -62,6 +62,14 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
     } catch (e) { alert('No se pudo guardar: ' + e.message) }
   }
 
+  async function borrar(id) {
+    if (!confirm('¿Borrar esta fila del listado?\nQueda guardada en la papelera por las dudas.')) return
+    try {
+      await api(`/api/entrada-salida/${id}`, { method: 'DELETE' })
+      onCambio?.()
+    } catch (e) { alert('No se pudo borrar: ' + e.message) }
+  }
+
   return (
     <div className="table-scroll">
       <table className="data">
@@ -85,7 +93,12 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
               <td className="mono" style={{ minWidth: 110 }}><Celda valor={r.pase_firma} tipo="date" render={fechaCorta} onGuardar={(v) => set(r.id, 'pase_firma', v)} /></td>
               <td className="mono" style={{ minWidth: 110 }}><Celda valor={r.subido_lex} tipo="date" render={fechaCorta} onGuardar={(v) => set(r.id, 'subido_lex', v)} /></td>
               <td className="muted" style={{ minWidth: 160 }}><Celda valor={r.observaciones} onGuardar={(v) => set(r.id, 'observaciones', v)} /></td>
-              <td>{r.expediente_id && <button className="btn btn-ghost btn-sm" onClick={() => onAbrir(r.expediente_id)} title="Abrir el expediente">↗</button>}</td>
+              <td>
+                <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                  {r.expediente_id && <button className="btn btn-ghost btn-sm" onClick={() => onAbrir(r.expediente_id)} title="Abrir el expediente">↗</button>}
+                  <button className="btn btn-ghost btn-sm" onClick={() => borrar(r.id)} title="Borrar fila">🗑</button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

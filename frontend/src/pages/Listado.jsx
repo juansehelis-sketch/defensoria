@@ -11,7 +11,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, obtenerToken } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
-import { isoLocal, diaLargo } from '../utils/format'
+import { isoLocal, diaLargo, fechaCorta, fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
 import ImportarPDF from '../components/ImportarPDF'
 import TablaListado from '../components/TablaListado'
@@ -30,6 +30,7 @@ export default function Listado() {
 
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarPDF, setMostrarPDF] = useState(false)
+  const [mostrarPapelera, setMostrarPapelera] = useState(false)
   const [exportando, setExportando] = useState(false)
 
   // Cualquier filtro activo (búsqueda o asignación) muestra TODAS las fechas;
@@ -111,6 +112,7 @@ export default function Listado() {
           </div>
         </div>
         <div className="row">
+          <button className="btn btn-ghost" onClick={() => setMostrarPapelera(true)} title="Ver filas borradas">🗑 Papelera</button>
           <button className="btn btn-ghost" onClick={exportar} disabled={exportando}>
             {exportando ? <span className="spin" /> : '⬇ Exportar'}
           </button>
@@ -184,7 +186,54 @@ export default function Listado() {
       {mostrarPDF && (
         <ImportarPDF onClose={() => setMostrarPDF(false)} onImportado={() => { setMostrarPDF(false); cargar() }} />
       )}
+      {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}
     </div>
+  )
+}
+
+// ── Papelera: filas borradas (por las dudas) ───────────────────
+function Papelera({ onClose }) {
+  const [borrados, setBorrados] = useState([])
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    api('/api/entrada-salida/borrados')
+      .then(setBorrados)
+      .catch(() => {})
+      .finally(() => setCargando(false))
+  }, [])
+
+  return (
+    <Modal titulo="Papelera — filas borradas" ancho={820} onClose={onClose}
+      footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}>
+      <p className="tl-meta" style={{ marginBottom: 10 }}>Cada vez que se borra una fila del listado, queda registrada acá con quién y cuándo la borró.</p>
+      {cargando ? (
+        <div className="loading-center"><span className="spin" /></div>
+      ) : borrados.length === 0 ? (
+        <div className="empty">No se borró ninguna fila todavía.</div>
+      ) : (
+        <div className="table-scroll" style={{ maxHeight: 420, overflowY: 'auto' }}>
+          <table className="data">
+            <thead>
+              <tr><th>Borrado</th><th>Por</th><th>Fecha fila</th><th>Juzgado</th><th>Expediente</th><th>Autos</th><th>Asignación</th></tr>
+            </thead>
+            <tbody>
+              {borrados.map((b) => (
+                <tr key={b.id} style={{ cursor: 'default' }}>
+                  <td className="mono">{fechaHora(b.fecha_borrado)}</td>
+                  <td>{b.borrado_por || '—'}</td>
+                  <td className="mono">{fechaCorta(b.fecha)}</td>
+                  <td className="mono">{b.juzgado}</td>
+                  <td className="mono">{b.numero_expediente || '—'}</td>
+                  <td style={{ maxWidth: 280 }}>{b.autos}</td>
+                  <td>{b.asignacion || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
   )
 }
 

@@ -7,8 +7,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from datetime import date
 from app.database import get_db
-from app.models import EntradaSalida, Expediente, Usuario, Notificacion
-from app.schemas import EntradaSalida as EntradaSalidaSchema, EntradaSalidaCreate
+from app.models import EntradaSalida, Expediente, Usuario, Notificacion, BorradoListado
+from app.schemas import (
+    EntradaSalida as EntradaSalidaSchema, EntradaSalidaCreate,
+    BorradoListado as BorradoListadoSchema,
+)
+from app.utils.deps import obtener_usuario_actual
 
 router = APIRouter(prefix="/api/entrada-salida", tags=["entrada-salida"])
 
@@ -146,6 +150,17 @@ def _aplicar_filtros(query, fecha_inicio, fecha_fin, juzgado, asignacion, busque
     return query
 
 
+@router.get("/borrados", response_model=list[BorradoListadoSchema])
+async def listar_borrados(db: Session = Depends(get_db)):
+    """Papelera: filas del listado que se borraron (las más recientes primero)."""
+    return (
+        db.query(BorradoListado)
+        .order_by(BorradoListado.fecha_borrado.desc())
+        .limit(300)
+        .all()
+    )
+
+
 @router.get("/{entrada_id}", response_model=EntradaSalidaSchema)
 async def obtener_entrada_salida(entrada_id: int, db: Session = Depends(get_db)):
     """
@@ -207,21 +222,31 @@ async def actualizar_entrada_salida(
 
 
 @router.delete("/{entrada_id}")
-async def eliminar_entrada_salida(entrada_id: int, db: Session = Depends(get_db)):
+async def eliminar_entrada_salida(
+    entrada_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
     """
-    Elimina un registro de Entrada/Salida.
+    Elimina una fila del listado, guardando una copia en la papelera
+    (borrados_listado) por si hace falta revisarla después.
     """
     entrada = db.query(EntradaSalida).filter(EntradaSalida.id == entrada_id).first()
-
     if not entrada:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Registro no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro no encontrado")
 
+    # Guardar copia en la papelera antes de borrar
+    db.add(BorradoListado(
+        fecha=entrada.fecha,
+        juzgado=entrada.juzgado,
+        numero_expediente=entrada.numero_expediente,
+        autos=entrada.autos,
+        asignacion=entrada.asignacion,
+        observaciones=entrada.observaciones,
+        borrado_por=usuario.nombre,
+    ))
     db.delete(entrada)
     db.commit()
-
     return {"message": "Registro eliminado"}
 
 

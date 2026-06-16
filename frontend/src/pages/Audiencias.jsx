@@ -140,8 +140,9 @@ export default function Audiencias() {
                       <>
                         <div style={{ fontSize: 12, fontWeight: 600, color: esHoy ? 'var(--teal)' : 'var(--text)' }}>{d}</div>
                         {items.slice(0, 2).map((a) => (
-                          <div key={a.id} style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: 'var(--navy)', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {String(a.hora).slice(0, 5)} J{a.juzgado}
+                          <div key={a.id} style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: 'var(--navy)', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={`${String(a.hora).slice(0, 5)} · ${a.motivo || ''}`}>
+                            <b>{String(a.hora).slice(0, 5)}</b> {a.motivo || a.base_legal || `J${a.juzgado}`}
                           </div>
                         ))}
                         {items.length > 2 && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>+{items.length - 2} más</div>}
@@ -168,16 +169,16 @@ export default function Audiencias() {
             ) : (
               <div className="table-scroll">
                 <table className="data">
-                  <thead><tr><th>Hora</th><th>Juzgado</th><th>Motivo</th><th>Modalidad</th><th>Acceso / Dirección</th><th>Asesor/a</th><th>Estado</th></tr></thead>
+                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th></tr></thead>
                   <tbody>
                     {audienciasDiaSel.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).map((a) => (
                       <tr key={a.id} style={{ cursor: 'default' }}>
-                        <td className="mono">{String(a.hora).slice(0, 5)}</td>
+                        <td className="mono" style={{ fontWeight: 700 }}>{String(a.hora).slice(0, 5)}</td>
+                        <td style={{ fontWeight: 600 }}>{a.motivo || a.base_legal || '—'}</td>
                         <td className="mono">{a.juzgado}</td>
-                        <td>{a.motivo || a.base_legal || '—'}</td>
                         <td>{a.modalidad === 'Virtual' ? '💻 Virtual' : a.modalidad === 'Presencial' ? '📍 Presencial' : (a.modalidad || '—')}</td>
                         <td className="muted" style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{a.modalidad === 'Virtual' ? (a.datos_acceso || '—') : (a.direccion || '—')}</td>
-                        <td>{a.asesor || '—'}</td>
+                        <td>{a.asignado_a || a.asesor || '—'}</td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
                       </tr>
                     ))}

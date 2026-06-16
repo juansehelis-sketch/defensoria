@@ -215,6 +215,21 @@ class Plantilla(Base):
     carpeta = relationship("CarpetaModelo", back_populates="plantillas")
 
 
+class BorradoListado(Base):
+    """Registro de filas del listado que se borraron (papelera / por las dudas)."""
+    __tablename__ = "borrados_listado"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, nullable=True)
+    juzgado = Column(String, nullable=True)
+    numero_expediente = Column(String, nullable=True)
+    autos = Column(Text, nullable=True)
+    asignacion = Column(String, nullable=True)
+    observaciones = Column(Text, nullable=True)
+    borrado_por = Column(String, nullable=True)
+    fecha_borrado = Column(DateTime, default=datetime.now)
+
+
 class Notificacion(Base):
     __tablename__ = "notificaciones"
 
