@@ -66,6 +66,34 @@ def get_db():
         db.close()
 
 
+# Columnas agregadas después del primer despliegue. create_all() crea tablas nuevas
+# pero NO modifica las existentes, así que las agregamos a mano (idempotente).
+# Funciona en SQLite y Postgres. Para agregar columnas nuevas en el futuro,
+# sumalas a esta lista.
+_COLUMNAS_EXTRA = [
+    ("audiencias", "asignado_a", "VARCHAR"),
+    ("audiencias", "asistencia", "VARCHAR DEFAULT 'pendiente'"),
+]
+
+
+def _asegurar_columnas():
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    tablas = insp.get_table_names()
+    for tabla, columna, tipo in _COLUMNAS_EXTRA:
+        if tabla not in tablas:
+            continue
+        existentes = [c["name"] for c in insp.get_columns(tabla)]
+        if columna not in existentes:
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(f'ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}'))
+                print(f"[OK] Columna agregada: {tabla}.{columna}")
+            except Exception as e:
+                print(f"[!] No se pudo agregar {tabla}.{columna}: {e}")
+
+
 def init_db():
-    """Crea todas las tablas."""
+    """Crea las tablas y aplica las migraciones de columnas pendientes."""
     Base.metadata.create_all(bind=engine)
+    _asegurar_columnas()

@@ -10,13 +10,17 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { api } from '../utils/api'
+import { useAuth } from '../context/AuthContext'
+import { diaLargo } from '../utils/format'
 import Modal from '../components/Modal'
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 export default function Audiencias() {
+  const { usuario } = useAuth()
   const hoy = new Date()
+  const [vista, setVista] = useState('calendario') // 'calendario' | 'agenda'
   const [anio, setAnio] = useState(hoy.getFullYear())
   const [mes, setMes] = useState(hoy.getMonth()) // 0-11
   const [audiencias, setAudiencias] = useState([])
@@ -92,6 +96,15 @@ export default function Audiencias() {
         </div>
       </div>
 
+      {/* Toggle de vista */}
+      <div className="row" style={{ marginBottom: 14, gap: 8 }}>
+        <button className={'btn btn-sm ' + (vista === 'calendario' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('calendario')}>📅 Calendario general</button>
+        <button className={'btn btn-sm ' + (vista === 'agenda' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('agenda')}>📋 Mi agenda</button>
+      </div>
+
+      {vista === 'agenda' && <MiAgenda />}
+
+      {vista === 'calendario' && (<>
       {/* Navegación de mes */}
       <div className="row" style={{ marginBottom: 14, justifyContent: 'center' }}>
         <button className="btn btn-ghost btn-sm" onClick={() => cambiarMes(-1)}>←</button>
@@ -175,6 +188,7 @@ export default function Audiencias() {
           </div>
         </div>
       )}
+      </>)}
 
       {mostrarImport && (
         <ImportarAudiencias onClose={() => setMostrarImport(false)} onImportado={() => { setMostrarImport(false); cargar() }} />
@@ -244,18 +258,95 @@ function ImportarAudiencias({ onClose, onImportado }) {
   )
 }
 
+// ── Mi agenda (audiencias asignadas a mí) ──────────────────────
+function MiAgenda() {
+  const [audiencias, setAudiencias] = useState([])
+  const [cargando, setCargando] = useState(true)
+
+  async function cargar() {
+    setCargando(true)
+    try { setAudiencias(await api('/api/audiencias/mias')) }
+    catch (e) { console.error(e) } finally { setCargando(false) }
+  }
+  useEffect(() => { cargar() }, [])
+
+  async function marcar(id, asistencia) {
+    try { await api(`/api/audiencias/${id}`, { method: 'PUT', body: { asistencia } }); cargar() }
+    catch (e) { alert(e.message) }
+  }
+
+  if (cargando) return <div className="loading-center"><span className="spin" /></div>
+  if (audiencias.length === 0) return <div className="card"><div className="empty">No tenés audiencias asignadas a tu nombre.<br />Cuando carguen una con tu nombre en "¿Quién va?", aparece acá.</div></div>
+
+  // Agrupar por fecha (ya vienen ordenadas por fecha/hora)
+  const porFecha = {}
+  const orden = []
+  audiencias.forEach((a) => { if (!porFecha[a.fecha]) { porFecha[a.fecha] = []; orden.push(a.fecha) } porFecha[a.fecha].push(a) })
+
+  const borde = { va: 'var(--green)', no_va: '#9ca3af', pendiente: 'var(--amber)' }
+  const fondo = { va: '#dcfce7', no_va: '#f3f4f6', pendiente: '#fffbeb' }
+
+  return (
+    <div>
+      <div className="row" style={{ gap: 14, marginBottom: 10, fontSize: 12, color: 'var(--muted)' }}>
+        <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#fffbeb', border: '1px solid var(--amber)' }} /> Por confirmar</span>
+        <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#dcfce7', border: '1px solid var(--green)' }} /> Voy</span>
+        <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#f3f4f6', border: '1px solid #9ca3af' }} /> No voy</span>
+      </div>
+
+      {orden.map((fecha) => (
+        <div key={fecha} className="card">
+          <div className="card-header"><span className="card-title">{diaLargo(new Date(fecha + 'T00:00:00'))}</span></div>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {porFecha[fecha].map((a) => {
+              const est = a.asistencia || 'pendiente'
+              const acceso = a.modalidad === 'Virtual' ? a.datos_acceso : a.direccion
+              return (
+                <div key={a.id} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', border: '1px solid var(--border)', borderLeft: `6px solid ${borde[est]}`, borderRadius: 8, padding: '12px 14px', background: fondo[est], opacity: est === 'no_va' ? 0.65 : 1 }}>
+                  {/* HORARIO primero, grande */}
+                  <div style={{ minWidth: 66, textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--navy)', lineHeight: 1 }}>{String(a.hora).slice(0, 5)}</div>
+                    <div className="tl-meta" style={{ marginTop: 3 }}>Juzg. {a.juzgado}</div>
+                  </div>
+                  {/* MOTIVO + detalle */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{a.motivo || a.base_legal || 'Sin motivo cargado'}</div>
+                    <div className="tl-meta" style={{ marginTop: 3 }}>
+                      {a.modalidad === 'Virtual' ? '💻 Virtual' : '📍 Presencial'}{acceso ? ' · ' + acceso : ''}
+                    </div>
+                  </div>
+                  {/* Voy / No voy */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <button className={'btn btn-sm ' + (est === 'va' ? 'btn-green' : 'btn-ghost')} onClick={() => marcar(a.id, est === 'va' ? 'pendiente' : 'va')}>{est === 'va' ? '✓ Voy' : 'Voy'}</button>
+                    <button className={'btn btn-sm ' + (est === 'no_va' ? 'btn-red' : 'btn-ghost')} onClick={() => marcar(a.id, est === 'no_va' ? 'pendiente' : 'no_va')}>{est === 'no_va' ? '✗ No voy' : 'No voy'}</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Alta manual ────────────────────────────────────────────────
 function FormAudiencia({ onClose, onGuardado }) {
   const [expedientes, setExpedientes] = useState([])
+  const [responsables, setResponsables] = useState([])
   const [form, setForm] = useState({
     expediente_id: '', fecha: new Date().toISOString().split('T')[0], hora: '09:00',
-    juzgado: '', motivo: '', modalidad: 'Presencial', datos_acceso: '', direccion: '', asesor: '',
+    juzgado: '', motivo: '', modalidad: 'Presencial', datos_acceso: '', direccion: '', asignado_a: '',
   })
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     api('/api/expedientes/', { params: { limit: 500 } }).then(setExpedientes).catch(() => {})
+    // Quién puede ir: defensora + secretarias
+    api('/api/usuarios/').then((us) => {
+      setResponsables(us.filter((u) => u.rol === 'defensora' || u.rol === 'secretaria'))
+    }).catch(() => {})
   }, [])
 
   function set(c, v) { setForm((f) => ({ ...f, [c]: v })) }
@@ -335,7 +426,13 @@ function FormAudiencia({ onClose, onGuardado }) {
         </div>
       )}
 
-      <div className="field" style={{ marginBottom: 0 }}><label>Asesor/a (opcional)</label><input value={form.asesor} onChange={(e) => set('asesor', e.target.value)} /></div>
+      <div className="field" style={{ marginBottom: 0 }}>
+        <label>¿Quién va? *</label>
+        <select value={form.asignado_a} onChange={(e) => set('asignado_a', e.target.value)}>
+          <option value="">— Elegir —</option>
+          {responsables.map((r) => <option key={r.id} value={r.nombre}>{r.nombre} ({r.rol})</option>)}
+        </select>
+      </div>
     </Modal>
   )
 }

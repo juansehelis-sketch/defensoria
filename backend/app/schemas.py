@@ -155,6 +155,8 @@ class AudienciaBase(BaseModel):
     datos_acceso: Optional[str] = None
     direccion: Optional[str] = None
     asesor: Optional[str] = None
+    asignado_a: Optional[str] = None
+    asistencia: str = "pendiente"
     estado: str = "programada"
 
 

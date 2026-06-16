@@ -31,6 +31,23 @@ async def listar_audiencias(
     return query.order_by(Audiencia.fecha.asc(), Audiencia.hora.asc()).all()
 
 
+@router.get("/mias", response_model=list[AudienciaSchema])
+async def mis_audiencias(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Agenda personal: solo las audiencias asignadas al usuario logueado
+    (las que tienen su nombre en 'quién va'). Ordenadas por fecha y hora.
+    """
+    return (
+        db.query(Audiencia)
+        .filter(Audiencia.asignado_a == usuario.nombre)
+        .order_by(Audiencia.fecha.asc(), Audiencia.hora.asc())
+        .all()
+    )
+
+
 @router.post("/", response_model=AudienciaSchema)
 async def crear_audiencia(audiencia: AudienciaCreate, db: Session = Depends(get_db)):
     """Crea una audiencia vinculada a un expediente."""
@@ -49,6 +66,8 @@ async def crear_audiencia(audiencia: AudienciaCreate, db: Session = Depends(get_
         datos_acceso=audiencia.datos_acceso,
         direccion=audiencia.direccion,
         asesor=audiencia.asesor,
+        asignado_a=audiencia.asignado_a,
+        asistencia=audiencia.asistencia or "pendiente",
         estado=audiencia.estado,
     )
     db.add(nueva)

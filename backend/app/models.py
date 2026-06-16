@@ -112,6 +112,8 @@ class Audiencia(Base):
     datos_acceso = Column(Text, nullable=True)     # link/datos (si es virtual)
     direccion = Column(String, nullable=True)      # dirección (si es presencial)
     asesor = Column(String, nullable=True)
+    asignado_a = Column(String, nullable=True, index=True)   # quién va (Stella/Brenda/Laura/Silvana)
+    asistencia = Column(String, default="pendiente")         # pendiente / va / no_va
     estado = Column(String, default="programada")  # programada, realizada, cancelada
     fecha_creacion = Column(DateTime, default=datetime.now)
 
