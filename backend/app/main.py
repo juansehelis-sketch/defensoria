@@ -27,10 +27,18 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS — permitir requests desde frontend
+# CORS — orígenes permitidos.
+# En local: frontend de Vite. En producción (front en otro dominio, ej. Vercel)
+# se agregan los dominios desde la variable de entorno CORS_ORIGINS
+# (separados por coma). Si el frontend se sirve desde el mismo backend, CORS no
+# hace falta, pero no molesta.
+_origenes = [settings.FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"]
+if settings.CORS_ORIGINS:
+    _origenes += [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_origenes,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
