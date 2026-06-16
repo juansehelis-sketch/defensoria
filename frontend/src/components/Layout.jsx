@@ -28,7 +28,7 @@ export default function Layout() {
           style={{ cursor: 'pointer' }}
           onClick={() => navigate('/')}
         >
-          <img src="/logo.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="MPD" style={{ height: 36, width: 'auto', background: '#fff', borderRadius: 7, padding: '3px 5px' }} />
+          <img src="/logo-mark.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="MPD" style={{ height: 32, width: 'auto' }} />
           <span>Defensoría · MPD</span>
         </div>
 
