@@ -63,8 +63,21 @@ app.include_router(modelos.router)
 # Inicializar BD al startup
 @app.on_event("startup")
 async def startup_event():
-    """Crea las tablas en la BD al iniciar."""
+    """Crea las tablas y, si la base está vacía, el roster inicial de usuarios."""
     init_db()
+    # Auto-seed: en un despliegue nuevo (base vacía) crea los usuarios solo,
+    # así no hace falta consola para sembrarlos.
+    from app.database import SessionLocal
+    from app.seed_data import crear_roster_si_vacio
+    db = SessionLocal()
+    try:
+        n = crear_roster_si_vacio(db)
+        if n:
+            print(f"[OK] Roster inicial creado: {n} usuarios")
+    except Exception as e:
+        print(f"[!] No se pudo crear el roster inicial: {e}")
+    finally:
+        db.close()
     print("[OK] Base de datos inicializada")
 
 
