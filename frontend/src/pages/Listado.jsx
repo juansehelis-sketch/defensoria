@@ -15,6 +15,7 @@ import { isoLocal, diaLargo, fechaCorta, fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
 import ImportarPDF from '../components/ImportarPDF'
 import TablaListado from '../components/TablaListado'
+import Icono from '../components/Icono'
 
 export default function Listado() {
   const { usuario } = useAuth()
@@ -112,12 +113,12 @@ export default function Listado() {
           </div>
         </div>
         <div className="row">
-          <button className="btn btn-ghost" onClick={() => setMostrarPapelera(true)} title="Ver filas borradas">🗑 Papelera</button>
+          <button className="btn btn-ghost" onClick={() => setMostrarPapelera(true)} title="Ver filas borradas"><Icono nombre="borrar" size={15} /> Papelera</button>
           <button className="btn btn-ghost" onClick={exportar} disabled={exportando}>
-            {exportando ? <span className="spin" /> : '⬇ Exportar'}
+            {exportando ? <span className="spin" /> : <><Icono nombre="exportar" size={15} /> Exportar</>}
           </button>
-          <button className="btn btn-ghost" onClick={() => setMostrarPDF(true)}>📄 Importar PDF</button>
-          <button className="btn btn-teal" onClick={() => setMostrarForm(true)}>+ Agregar</button>
+          <button className="btn btn-ghost" onClick={() => setMostrarPDF(true)}><Icono nombre="importar" size={15} /> Importar PDF</button>
+          <button className="btn btn-teal" onClick={() => setMostrarForm(true)}><Icono nombre="agregar" size={16} /> Agregar</button>
         </div>
       </div>
 
@@ -161,7 +162,7 @@ export default function Listado() {
       <div className="row" style={{ gap: 16, marginBottom: 8, fontSize: 12, color: 'var(--muted)' }}>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef3c7', border: '1px solid #e6d28a' }} /> Enviado a la firma</span>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#dcfce7', border: '1px solid #a7e3bf' }} /> Subido / vista cancelada</span>
-        <span style={{ marginLeft: 'auto' }}>✏️ Hacé click en cualquier celda para editarla. ↗ abre el expediente.</span>
+        <span style={{ marginLeft: 'auto' }}>Hacé click en cualquier celda para editarla. La flecha abre el expediente.</span>
       </div>
 
       <div className="card">

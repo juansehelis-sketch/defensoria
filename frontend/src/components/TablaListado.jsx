@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../utils/api'
 import { fechaCorta, colorFila } from '../utils/format'
+import Icono from './Icono'
 
 const inputStyle = {
   width: '100%', padding: '4px 6px', border: '1.5px solid var(--teal)',
@@ -95,8 +96,8 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
               <td className="muted" style={{ minWidth: 160 }}><Celda valor={r.observaciones} onGuardar={(v) => set(r.id, 'observaciones', v)} /></td>
               <td>
                 <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
-                  {r.expediente_id && <button className="btn btn-ghost btn-sm" onClick={() => onAbrir(r.expediente_id)} title="Abrir el expediente">↗</button>}
-                  <button className="btn btn-ghost btn-sm" onClick={() => borrar(r.id)} title="Borrar fila">🗑</button>
+                  {r.expediente_id && <button className="btn btn-ghost btn-sm" onClick={() => onAbrir(r.expediente_id)} title="Abrir el expediente"><Icono nombre="abrir" size={15} /></button>}
+                  <button className="btn btn-ghost btn-sm" onClick={() => borrar(r.id)} title="Borrar fila"><Icono nombre="borrar" size={15} color="var(--red)" /></button>
                 </div>
               </td>
             </tr>

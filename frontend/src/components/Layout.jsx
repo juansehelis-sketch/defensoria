@@ -4,15 +4,16 @@
 
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import Icono from './Icono'
 
 // Solapas visibles para todos los roles.
 const TABS = [
-  { to: '/', label: 'Inicio', end: true },
-  { to: '/expedientes', label: 'Expedientes' },
-  { to: '/a-la-firma', label: 'A la firma' },
-  { to: '/audiencias', label: 'Audiencias' },
-  { to: '/modelos', label: 'Modelos' },
-  { to: '/reportes', label: 'Reportes' },
+  { to: '/', label: 'Inicio', icono: 'inicio', end: true },
+  { to: '/expedientes', label: 'Expedientes', icono: 'expedientes' },
+  { to: '/a-la-firma', label: 'A la firma', icono: 'firma' },
+  { to: '/audiencias', label: 'Audiencias', icono: 'audiencias' },
+  { to: '/modelos', label: 'Modelos', icono: 'modelos' },
+  { to: '/reportes', label: 'Reportes', icono: 'reportes' },
 ]
 
 export default function Layout() {
@@ -27,7 +28,7 @@ export default function Layout() {
           style={{ cursor: 'pointer' }}
           onClick={() => navigate('/')}
         >
-          <img src="/logo.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="MPD" style={{ height: 34, width: 'auto', background: '#fff', borderRadius: 6, padding: 2 }} />
+          <img src="/logo.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="MPD" style={{ height: 36, width: 'auto', background: '#fff', borderRadius: 7, padding: '3px 5px' }} />
           <span>Defensoría · MPD</span>
         </div>
 
@@ -39,6 +40,7 @@ export default function Layout() {
               end={t.end}
               className={({ isActive }) => 'nav-tab' + (isActive ? ' active' : '')}
             >
+              <Icono nombre={t.icono} size={16} />
               {t.label}
             </NavLink>
           ))}

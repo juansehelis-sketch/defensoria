@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import { claseEstado, fechaCorta, fechaHora, edadDesde, TIPOS_INTERVENCION } from '../utils/format'
 import ExpedienteForm from '../components/ExpedienteForm'
 import PreviewArchivo from '../components/PreviewArchivo'
+import Icono from '../components/Icono'
 
 export default function ExpedienteDetail() {
   const { id } = useParams()
@@ -75,10 +76,10 @@ export default function ExpedienteDetail() {
           <div>
             <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '.5px' }}>{expediente.numero}</div>
             <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6, maxWidth: 760, lineHeight: 1.5 }}>{expediente.caratula}</div>
-            <div className="row" style={{ gap: 16, marginTop: 12, fontSize: 12.5, opacity: 0.85 }}>
-              <span>⚖ Juzgado {expediente.juzgado}</span>
-              <span>👤 {expediente.despachante_asignado || 'Sin asignar'}</span>
-              <span>📅 Entrada {fechaCorta(expediente.fecha_entrada)}</span>
+            <div className="row" style={{ gap: 18, marginTop: 13, fontSize: 12.5, opacity: 0.9 }}>
+              <span className="row" style={{ gap: 6 }}><Icono nombre="expedientes" size={14} color="var(--celeste)" /> Juzgado {expediente.juzgado}</span>
+              <span className="row" style={{ gap: 6 }}><Icono nombre="personas" size={14} color="var(--celeste)" /> {expediente.despachante_asignado || 'Sin asignar'}</span>
+              <span className="row" style={{ gap: 6 }}><Icono nombre="audiencias" size={14} color="var(--celeste)" /> Entrada {fechaCorta(expediente.fecha_entrada)}</span>
               <span className={claseEstado(expediente.estado)}>{expediente.estado}</span>
             </div>
           </div>
@@ -100,7 +101,7 @@ export default function ExpedienteDetail() {
 
       {/* Dictámenes y documentos */}
       <div className="card">
-        <div className="card-header"><span className="card-title">📑 Dictámenes y documentos</span></div>
+        <div className="card-header"><span className="card-title"><Icono nombre="doc" size={15} color="var(--teal)" /> Dictámenes y documentos</span></div>
         <div className="card-body">
           {documentos.length === 0 ? (
             <div className="empty">Todavía no hay dictámenes ni documentos cargados.<br />Aparecen acá cuando se sube un dictamen al expediente o se adjunta un archivo.</div>
@@ -150,7 +151,7 @@ function ResumenCard({ expediente, onGuardado }) {
   return (
     <div className="card">
       <div className="card-header">
-        <span className="card-title">📝 Resumen del caso</span>
+        <span className="card-title"><Icono nombre="resumen" size={15} color="var(--teal)" /> Resumen del caso</span>
         {cambiado && <button className="btn btn-teal btn-sm" onClick={guardar} disabled={guardando}>{guardando ? <span className="spin" /> : 'Guardar resumen'}</button>}
       </div>
       <div className="card-body">
@@ -200,7 +201,7 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
   return (
     <div className="card">
       <div className="card-header">
-        <span className="card-title">👥 Nuestros defendidos</span>
+        <span className="card-title"><Icono nombre="personas" size={15} color="var(--teal)" /> Nuestros defendidos</span>
         <button className="btn btn-ghost btn-sm" onClick={() => setMostrarForm((v) => !v)}>{mostrarForm ? 'Cancelar' : '+ Agregar'}</button>
       </div>
       <div className="card-body">
@@ -237,7 +238,7 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
 function DatosCard({ expediente }) {
   return (
     <div className="card">
-      <div className="card-header"><span className="card-title">📋 Datos</span></div>
+      <div className="card-header"><span className="card-title"><Icono nombre="expedientes" size={15} color="var(--teal)" /> Datos</span></div>
       <div className="card-body">
         <Dato label="Juzgado" valor={expediente.juzgado} />
         <Dato label="Tipo de proceso" valor={expediente.tipo_proceso || '—'} />
@@ -288,7 +289,7 @@ function TimelineCard({ expedienteId, historial, despachantes, onCambio }) {
   return (
     <div className="card">
       <div className="card-header">
-        <span className="card-title">🕓 Línea de tiempo</span>
+        <span className="card-title"><Icono nombre="reloj" size={15} color="var(--teal)" /> Línea de tiempo</span>
         <button className="btn btn-teal btn-sm" onClick={() => setMostrarForm((v) => !v)}>{mostrarForm ? 'Cancelar' : '+ Agregar al historial'}</button>
       </div>
       <div className="card-body">
