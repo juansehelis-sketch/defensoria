@@ -17,13 +17,31 @@ from app.schemas import (
 )
 from app.services.pdf_parser import parsear_pdf_desde_archivo, parsear_listado_de_pases
 from app.config import asignar_expediente
-from app.utils.deps import obtener_usuario_actual
+from app.utils.deps import obtener_usuario_actual, requerir_rol
 
 router = APIRouter(prefix="/api/expedientes", tags=["expedientes"])
 
 # Carpeta para uploads
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+@router.post("/admin/borrar-todos-los-datos")
+async def borrar_todos_los_datos(
+    db: Session = Depends(get_db),
+    _admin: Usuario = Depends(requerir_rol("admin")),
+):
+    """
+    Borra TODOS los datos de casos (expedientes, listado, historial, proyectos,
+    audiencias, defendidos, papelera, notificaciones). NO toca los usuarios.
+    Solo admin. Pensado para limpieza de privacidad.
+    """
+    from app.models import Proyecto, Notificacion, Historial, Audiencia, Defendido, BorradoListado
+    for modelo in (Proyecto, Notificacion, Historial, Audiencia, Defendido,
+                   BorradoListado, EntradaSalida, Expediente):
+        db.query(modelo).delete(synchronize_session=False)
+    db.commit()
+    return {"message": "Todos los datos de expedientes fueron borrados"}
 
 
 @router.post("/", response_model=ExpedienteSchema)
