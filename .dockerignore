@@ -1,0 +1,13 @@
+# No copiar al build de Docker (se reinstala/reconstruye o es sensible)
+backend/venv/
+frontend/node_modules/
+frontend/dist/
+backend/uploads/
+backend/backups/
+**/__pycache__/
+*.db
+*.db-wal
+*.db-shm
+.env
+backend/.env
+.git/

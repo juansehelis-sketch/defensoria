@@ -8,12 +8,17 @@ from app.config import settings
 
 SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
+# Algunos proveedores (Supabase, Heroku) dan la URL como "postgres://", pero
+# SQLAlchemy 2.0 requiere "postgresql://". La normalizamos.
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # IMPORTANTE (multiusuario): los endpoints síncronos de FastAPI corren en un pool
 # de hilos, así que necesitamos un pool de conexiones real (NO una sola conexión
-# compartida). check_same_thread=False permite que cada conexión se use desde el
-# hilo que la toma del pool. El modo WAL (más abajo) mejora la concurrencia de
-# lecturas/escrituras simultáneas.
+# compartida).
 if "sqlite" in SQLALCHEMY_DATABASE_URL:
+    # check_same_thread=False permite usar la conexión desde el hilo del pool.
+    # El modo WAL (más abajo) mejora la concurrencia.
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False, "timeout": 30},
@@ -22,7 +27,19 @@ if "sqlite" in SQLALCHEMY_DATABASE_URL:
         echo=False,
     )
 else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=False)
+    # Postgres en la nube (Supabase): SSL obligatorio + pre-ping para reconectar
+    # cuando el proveedor cierra conexiones inactivas.
+    connect_args = {}
+    if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
+        connect_args["sslmode"] = "require"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        connect_args=connect_args,
+        echo=False,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
