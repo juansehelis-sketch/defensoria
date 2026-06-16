@@ -103,9 +103,14 @@ if DIST.exists():
             return JSONResponse({"detail": "No encontrado"}, status_code=404)
         archivo = DIST / full_path
         if full_path and archivo.is_file():
+            # Los assets tienen hash en el nombre → se pueden cachear tranquilos
             return FileResponse(archivo)
-        # Cualquier otra ruta → index.html (ruteo del lado del cliente)
-        return FileResponse(DIST / "index.html")
+        # index.html SIN caché: así el navegador siempre toma la última versión
+        # (evita que quede una versión vieja "pegada" tras cada deploy).
+        return FileResponse(
+            DIST / "index.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 else:
     @app.get("/")
     async def root():

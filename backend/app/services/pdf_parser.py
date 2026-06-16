@@ -63,22 +63,37 @@ def extraer_juzgado(texto: str) -> str:
 
 def extraer_caratula(after_text: str) -> str:
     """
-    Extrae la carátula del caso (descripción del juicio).
-    Se detiene al encontrar "DEFENSOR" o después de 400 caracteres.
+    Extrae la carátula (partes + 's/ tipo de proceso') del texto que sigue al
+    número, tratando de ser robusto a los distintos formatos de listado:
+    - corta antes del próximo expediente,
+    - saca las secuencias de fojas/cuerpo (números sueltos seguidos),
+    - corta el bloque de la dependencia destino / pie de página.
+    No es perfecto en los formatos donde la carátula se intercala con otras
+    columnas, pero captura el nombre de las partes (el dato clave); la carátula
+    se puede corregir a mano en el listado, y si el expediente ya vino antes se
+    completa sola con la de la base.
     """
-    stop_match = re.search(r"\bDEFENSOR", after_text, re.IGNORECASE)
-    raw = after_text[:stop_match.start()] if stop_match else after_text[:400]
+    txt = re.sub(r"\s+", " ", after_text[:700]).strip()
 
-    raw = re.sub(r"\s+", " ", raw).strip()
-    raw = re.sub(r"(\d+)\.\s+(\d+)", r"\1.\2", raw)
+    # Cortar antes del próximo número de expediente (NNN/AAAA)
+    sig = re.search(r"(?:CIV\s+)?\d{3,7}/\d{4}", txt)
+    if sig and sig.start() > 10:
+        txt = txt[:sig.start()]
 
-    match = re.search(r"^([\s\S]+?s\/[\s\S]*?)(?=\s+\d{1,5}\s+\d|\s*$)", raw, re.IGNORECASE)
-    if match:
-        raw = match.group(1)
-    else:
-        raw = re.sub(r"\s+\d{1,5}\s+\d{1,2}(?:\s+\d{1,2})?\s*$", "", raw).strip()
+    # Sacar secuencias de fojas / cuerpo / agregados (ej. "717 2 0", "306 2")
+    txt = re.sub(r"(?<=\s)\d{1,5}(?:\s+\d{1,3}){1,3}(?=\s|$)", " ", txt)
+    txt = re.sub(r"\s+", " ", txt).strip()
 
-    return raw.strip()[:200]
+    # Cortar el bloque de la dependencia destino / encabezados (van al final)
+    corte = re.search(
+        r"\b(DEFENSOR[IÍ]?[AO]|PODER\s+JUDICIAL|C[ÁA]MARA\s+NACIONAL|"
+        r"Fecha|Firma|Dependencia|Agregados|C[óo]digo\s+de\s+Barras)\b",
+        txt, re.IGNORECASE,
+    )
+    if corte and corte.start() > 12:
+        txt = txt[:corte.start()]
+
+    return re.sub(r"\s+", " ", txt).strip(" -·,")[:220]
 
 
 def parsear_listado_de_pases(texto: str) -> List[dict]:
@@ -94,8 +109,10 @@ def parsear_listado_de_pases(texto: str) -> List[dict]:
 
     juzgado = extraer_juzgado(texto)
 
-    # Buscar expedientes con formato "CIV NNNN/AAAA"
-    regex_expte = r"CIV\s+0*(\d{1,7}\/\d{4}(?:\/\d+)*)"
+    # Buscar expedientes en cualquier formato: con o sin "CIV", con ceros a la
+    # izquierda, y con sufijos (/1, /2). Pedimos 3+ dígitos para no confundir
+    # con fechas (ej. 06/2026).
+    regex_expte = r"(?:CIV\s+)?0*(\d{3,7}\/\d{4}(?:\/\d+)*)"
 
     for match in re.finditer(regex_expte, texto, re.IGNORECASE):
         expte = normalizar_expediente(match.group(1))
