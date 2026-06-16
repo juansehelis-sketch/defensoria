@@ -30,7 +30,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={manejarSubmit}>
         <div className="login-logo">
-          <img src="/logo.svg" alt="Ministerio Público de la Defensa" style={{ height: 64, width: 'auto' }} />
+          <img src="/logo.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="Ministerio Público de la Defensa" style={{ height: 64, width: 'auto' }} />
         </div>
         <div className="login-title">Ministerio Público de la Defensa</div>
         <div className="login-sub">Defensoría de Menores N° 6 · Gestión de expedientes</div>
