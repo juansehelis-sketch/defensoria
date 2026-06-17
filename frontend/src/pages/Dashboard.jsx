@@ -111,7 +111,7 @@ export default function Dashboard() {
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {pendientes.length === 0 ? (
-            <div className="empty">No tenés expedientes pendientes de enviar. 🎉</div>
+            <div className="empty">No tenés expedientes pendientes de enviar.</div>
           ) : (
             <TablaListado registros={pendientes} despachantes={despachantes} mostrarFecha mostrarUrgente onCambio={cargar} onAbrir={(eid) => navigate(`/expedientes/${eid}`)} />
           )}

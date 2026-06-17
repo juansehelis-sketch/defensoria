@@ -88,7 +88,7 @@ export default function Reportes() {
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {!sinMovimiento || sinMovimiento.total === 0 ? (
-            <div className="empty">No hay expedientes sin movimiento en {dias} días. 🎉</div>
+            <div className="empty">No hay expedientes sin movimiento en {dias} días.</div>
           ) : (
             <div className="table-scroll">
               <table className="data">

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { api, obtenerToken } from '../utils/api'
 import Modal from '../components/Modal'
 import PreviewArchivo from '../components/PreviewArchivo'
+import Icono from '../components/Icono'
 import { fechaCorta } from '../utils/format'
 
 export default function Modelos() {
@@ -86,7 +87,7 @@ function Carpeta({ carpeta, onCambio, onEliminar }) {
   return (
     <div className="card">
       <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => setAbierta((v) => !v)}>
-        <span className="card-title">📁 {carpeta.nombre} <span className="tl-meta" style={{ textTransform: 'none', letterSpacing: 0 }}>({carpeta.plantillas.length})</span></span>
+        <span className="card-title"><Icono nombre="archivo" size={15} color="var(--teal)" /> {carpeta.nombre} <span className="tl-meta" style={{ textTransform: 'none', letterSpacing: 0 }}>({carpeta.plantillas.length})</span></span>
         <div className="row" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
           <button className="btn btn-ghost btn-sm" onClick={() => { setAbierta(true); setMostrarForm(true) }}>+ Agregar modelo</button>
           <button className="btn btn-ghost btn-sm" onClick={onEliminar}>✕</button>
@@ -123,7 +124,7 @@ function ModeloItem({ plantilla, onCambio }) {
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>📄 {plantilla.nombre}</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}><Icono nombre="doc" size={14} color="var(--teal)" style={{ verticalAlign: '-2px', marginRight: 5 }} />{plantilla.nombre}</div>
           <div className="tl-meta">Agregado el {fechaCorta(plantilla.fecha_creacion)}</div>
         </div>
         <div className="row" style={{ gap: 6 }}>

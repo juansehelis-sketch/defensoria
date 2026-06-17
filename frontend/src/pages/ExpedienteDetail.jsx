@@ -323,7 +323,7 @@ function TimelineCard({ expedienteId, historial, despachantes, onCambio }) {
                   </div>
                   <div className="tl-desc">{h.descripcion}</div>
                   {h.archivo_url && (
-                    <a className="btn btn-ghost btn-sm" style={{ marginTop: 6 }} href={h.archivo_url} target="_blank" rel="noreferrer">📎 Ver archivo</a>
+                    <a className="btn btn-ghost btn-sm" style={{ marginTop: 6 }} href={h.archivo_url} target="_blank" rel="noreferrer"><Icono nombre="clip" size={13} />Ver archivo</a>
                   )}
                 </div>
               )

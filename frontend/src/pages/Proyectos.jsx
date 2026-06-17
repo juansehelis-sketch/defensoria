@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import { api, obtenerToken } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
+import Icono from '../components/Icono'
 import { fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
 import PreviewArchivo from '../components/PreviewArchivo'
@@ -177,7 +178,7 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
         </div>
         {proyecto.datos && (
           <div style={{ marginTop: 10, background: 'rgba(255,255,255,.1)', borderRadius: 7, padding: '8px 11px', fontSize: 12.5, lineHeight: 1.5 }}>
-            📝 {proyecto.datos}
+            <Icono nombre="doc" size={13} style={{ verticalAlign: '-2px', marginRight: 5, opacity: .85 }} />{proyecto.datos}
           </div>
         )}
       </div>

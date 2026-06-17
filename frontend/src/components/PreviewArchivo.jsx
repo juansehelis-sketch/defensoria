@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../utils/api'
+import Icono from './Icono'
 
 export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicial = true }) {
   // El tipo se detecta desde la URL (siempre tiene la extensión real)
@@ -30,12 +31,12 @@ export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicia
       .finally(() => setCargandoDoc(false))
   }, [archivo.url, esDoc, abierto])
 
-  const icono = esPdf ? '📄' : esDoc ? '📝' : esImg ? '🖼️' : '📎'
+  const iconoNombre = esImg ? 'archivo' : esDoc || esPdf ? 'doc' : 'clip'
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 12, overflow: 'hidden' }}>
       <div style={{ background: '#f7f8fc', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: abierto ? '1px solid var(--border)' : 'none' }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{icono} {archivo.nombre}</span>
+        <span style={{ fontSize: 13, fontWeight: 600 }}><Icono nombre={iconoNombre} size={14} color="var(--teal)" style={{ verticalAlign: '-2px', marginRight: 5 }} />{archivo.nombre}</span>
         <div className="row" style={{ gap: 6 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setAbierto((v) => !v)}>{abierto ? 'Ocultar' : 'Ver'}</button>
           <a className="btn btn-ghost btn-sm" href={archivo.url} target="_blank" rel="noreferrer">Abrir aparte</a>

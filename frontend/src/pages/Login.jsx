@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import Icono from '../components/Icono'
 
 export default function Login() {
   const { login } = useAuth()
@@ -62,7 +63,7 @@ export default function Login() {
         </button>
 
         <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 18, lineHeight: 1.7 }}>
-          🔒 Todo corre en la red local.<br />Ningún dato sale a servicios externos.
+          <Icono nombre="candado" size={12} style={{ verticalAlign: '-2px', marginRight: 3 }} />Todo corre en la red local.<br />Ningún dato sale a servicios externos.
         </p>
       </form>
     </div>

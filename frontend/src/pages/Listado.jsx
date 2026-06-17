@@ -322,7 +322,7 @@ function FormListado({ fechaDefault, despachantes, onClose, onGuardado }) {
       <div className="field"><label>Observaciones</label><textarea value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} /></div>
       <label className="row" style={{ fontSize: 13, cursor: 'pointer', gap: 8, marginBottom: 0 }}>
         <input type="checkbox" checked={form.urgente} onChange={(e) => set('urgente', e.target.checked)} style={{ width: 'auto' }} />
-        <span style={{ fontWeight: 600, color: form.urgente ? 'var(--red)' : 'inherit' }}>⚠️ Marcar como URGENTE</span>
+        <span className="row" style={{ fontWeight: 600, gap: 5, color: form.urgente ? 'var(--red)' : 'inherit' }}><Icono nombre="alerta" size={14} />Marcar como URGENTE</span>
         <span className="tl-meta">(le avisa a la persona asignada en su pantalla de inicio)</span>
       </label>
     </Modal>

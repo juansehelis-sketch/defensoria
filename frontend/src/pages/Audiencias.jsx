@@ -12,6 +12,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { diaLargo } from '../utils/format'
+import Icono from '../components/Icono'
 import Modal from '../components/Modal'
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -91,15 +92,15 @@ export default function Audiencias() {
           <div className="page-sub">{audiencias.length} audiencia(s) en {MESES[mes]} {anio}</div>
         </div>
         <div className="row">
-          <button className="btn btn-ghost" onClick={() => setMostrarImport(true)}>📋 Importar desde texto</button>
+          <button className="btn btn-ghost" onClick={() => setMostrarImport(true)}><Icono nombre="importar" size={15} />Importar desde texto</button>
           <button className="btn btn-teal" onClick={() => setMostrarForm(true)}>+ Nueva audiencia</button>
         </div>
       </div>
 
       {/* Toggle de vista */}
       <div className="row" style={{ marginBottom: 14, gap: 8 }}>
-        <button className={'btn btn-sm ' + (vista === 'calendario' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('calendario')}>📅 Calendario general</button>
-        <button className={'btn btn-sm ' + (vista === 'agenda' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('agenda')}>📋 Mi agenda</button>
+        <button className={'btn btn-sm ' + (vista === 'calendario' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('calendario')}><Icono nombre="audiencias" size={14} />Calendario general</button>
+        <button className={'btn btn-sm ' + (vista === 'agenda' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('agenda')}><Icono nombre="resumen" size={14} />Mi agenda</button>
       </div>
 
       {vista === 'agenda' && <MiAgenda />}
@@ -176,7 +177,7 @@ export default function Audiencias() {
                         <td className="mono" style={{ fontWeight: 700 }}>{String(a.hora).slice(0, 5)}</td>
                         <td style={{ fontWeight: 600 }}>{a.motivo || a.base_legal || '—'}</td>
                         <td className="mono">{a.juzgado}</td>
-                        <td>{a.modalidad === 'Virtual' ? '💻 Virtual' : a.modalidad === 'Presencial' ? '📍 Presencial' : (a.modalidad || '—')}</td>
+                        <td>{a.modalidad === 'Virtual' ? <><Icono nombre="virtual" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Virtual</> : a.modalidad === 'Presencial' ? <><Icono nombre="presencial" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Presencial</> : (a.modalidad || '—')}</td>
                         <td className="muted" style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{a.modalidad === 'Virtual' ? (a.datos_acceso || '—') : (a.direccion || '—')}</td>
                         <td>{a.asignado_a || a.asesor || '—'}</td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
@@ -313,7 +314,7 @@ function MiAgenda() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{a.motivo || a.base_legal || 'Sin motivo cargado'}</div>
                     <div className="tl-meta" style={{ marginTop: 3 }}>
-                      {a.modalidad === 'Virtual' ? '💻 Virtual' : '📍 Presencial'}{acceso ? ' · ' + acceso : ''}
+                      {a.modalidad === 'Virtual' ? <><Icono nombre="virtual" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Virtual</> : <><Icono nombre="presencial" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Presencial</>}{acceso ? ' · ' + acceso : ''}
                     </div>
                   </div>
                   {/* Voy / No voy */}
@@ -417,12 +418,12 @@ function FormAudiencia({ onClose, onGuardado }) {
       {/* Campo condicional según modalidad */}
       {form.modalidad === 'Virtual' ? (
         <div className="field">
-          <label>💻 Datos de acceso (link/sala)</label>
+          <label><Icono nombre="virtual" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Datos de acceso (link/sala)</label>
           <textarea value={form.datos_acceso} onChange={(e) => set('datos_acceso', e.target.value)} placeholder="Link de la videollamada, ID de sala, contraseña..." style={{ minHeight: 60 }} />
         </div>
       ) : (
         <div className="field">
-          <label>📍 Dirección</label>
+          <label><Icono nombre="presencial" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Dirección</label>
           <input value={form.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Dirección donde se realiza la audiencia" />
         </div>
       )}
