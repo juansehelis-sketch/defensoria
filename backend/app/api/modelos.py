@@ -14,6 +14,7 @@ from app.models import CarpetaModelo, Plantilla
 from app.schemas import CarpetaModelo as CarpetaSchema, Plantilla as PlantillaSchema
 from app.utils.deps import obtener_usuario_actual
 from app.models import Usuario
+from app.services import storage
 
 router = APIRouter(prefix="/api/modelos", tags=["modelos"])
 
@@ -80,9 +81,8 @@ async def crear_plantilla(
     if archivo and archivo.filename:
         ext = Path(archivo.filename).suffix
         nombre_guardado = f"{uuid.uuid4().hex}{ext}"
-        destino = UPLOAD_DIR / nombre_guardado
-        with open(destino, "wb") as buffer:
-            shutil.copyfileobj(archivo.file, buffer)
+        contenido = await archivo.read()
+        storage.guardar(nombre_guardado, contenido, archivo.content_type)
         archivo_url = f"/uploads/{nombre_guardado}"
 
     plantilla = Plantilla(

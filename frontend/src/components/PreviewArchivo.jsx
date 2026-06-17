@@ -7,12 +7,13 @@
  */
 
 import { useEffect, useState } from 'react'
-import { api } from '../utils/api'
+import { api, urlArchivo } from '../utils/api'
 import Icono from './Icono'
 
 export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicial = true }) {
   // El tipo se detecta desde la URL (siempre tiene la extensión real)
   const ext = ((archivo.url || archivo.nombre || '').split('.').pop() || '').toLowerCase()
+  const fileSrc = urlArchivo(archivo.url)
   const esPdf = ext === 'pdf'
   const esDoc = ext === 'doc' || ext === 'docx'
   const esImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
@@ -39,22 +40,22 @@ export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicia
         <span style={{ fontSize: 13, fontWeight: 600 }}><Icono nombre={iconoNombre} size={14} color="var(--teal)" style={{ verticalAlign: '-2px', marginRight: 5 }} />{archivo.nombre}</span>
         <div className="row" style={{ gap: 6 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setAbierto((v) => !v)}>{abierto ? 'Ocultar' : 'Ver'}</button>
-          <a className="btn btn-ghost btn-sm" href={archivo.url} target="_blank" rel="noreferrer">Abrir aparte</a>
+          <a className="btn btn-ghost btn-sm" href={fileSrc} target="_blank" rel="noreferrer">Abrir aparte</a>
         </div>
       </div>
       {abierto && (
         <div style={{ background: '#fff', maxHeight: alturaPdf + 60, overflow: 'auto' }}>
-          {esPdf && <iframe src={archivo.url} title={archivo.nombre} style={{ width: '100%', height: alturaPdf, border: 'none', display: 'block' }} />}
-          {esImg && <img src={archivo.url} alt={archivo.nombre} style={{ maxWidth: '100%', display: 'block', margin: '0 auto' }} />}
+          {esPdf && <iframe src={fileSrc} title={archivo.nombre} style={{ width: '100%', height: alturaPdf, border: 'none', display: 'block' }} />}
+          {esImg && <img src={fileSrc} alt={archivo.nombre} style={{ maxWidth: '100%', display: 'block', margin: '0 auto' }} />}
           {esDoc && (
             <div style={{ padding: '16px 22px' }}>
               {cargandoDoc ? <span className="spin" />
-                : errDoc ? <div className="muted">{errDoc} <a href={archivo.url} target="_blank" rel="noreferrer">Abrir archivo</a></div>
+                : errDoc ? <div className="muted">{errDoc} <a href={fileSrc} target="_blank" rel="noreferrer">Abrir archivo</a></div>
                 : <div style={{ fontSize: 13.5, lineHeight: 1.65, fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: docHtml || '' }} />}
             </div>
           )}
           {!esPdf && !esImg && !esDoc && (
-            <div className="muted" style={{ padding: 14 }}>Vista previa no disponible. <a href={archivo.url} target="_blank" rel="noreferrer">Abrir archivo</a></div>
+            <div className="muted" style={{ padding: 14 }}>Vista previa no disponible. <a href={fileSrc} target="_blank" rel="noreferrer">Abrir archivo</a></div>
           )}
         </div>
       )}

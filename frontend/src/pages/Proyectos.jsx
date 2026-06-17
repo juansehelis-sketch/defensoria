@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { api, obtenerToken } from '../utils/api'
+import { api, obtenerToken, API_BASE } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import Icono from '../components/Icono'
 import { fechaHora } from '../utils/format'
@@ -148,7 +148,7 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
       if (conComentario) fd.append('comentario', comentario)
       if (conArchivos) archivos.forEach((a) => fd.append('archivos', a))
       if (conDictamen) fd.append('dictamen', dictamenFile)
-      const resp = await fetch(`/api/proyectos/${proyecto.id}/${ruta}`, {
+      const resp = await fetch(`${API_BASE}/api/proyectos/${proyecto.id}/${ruta}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${obtenerToken()}` },
         body: fd,
@@ -300,7 +300,7 @@ function EnviarProyecto({ onClose, onEnviado }) {
       fd.append('titulo', titulo || `Proyecto ${expediente.numero}`)
       fd.append('datos', datos)
       archivos.forEach((a) => fd.append('archivos', a))
-      const resp = await fetch('/api/proyectos/', {
+      const resp = await fetch(API_BASE + '/api/proyectos/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${obtenerToken()}` },
         body: fd,

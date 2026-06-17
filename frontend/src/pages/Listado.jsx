@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, obtenerToken } from '../utils/api'
+import { api, obtenerToken, API_BASE } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { isoLocal, diaLargo, fechaCorta, fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
@@ -83,7 +83,7 @@ export default function Listado() {
     try {
       const params = new URLSearchParams()
       if (!modoGlobal) { params.append('fecha_inicio', diaISO); params.append('fecha_fin', diaISO) }
-      const resp = await fetch(`/api/entrada-salida/export/excel?${params}`, {
+      const resp = await fetch(`${API_BASE}/api/entrada-salida/export/excel?${params}`, {
         method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` },
       })
       const data = await resp.json()

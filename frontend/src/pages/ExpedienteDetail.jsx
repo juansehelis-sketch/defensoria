@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api, obtenerToken } from '../utils/api'
+import { api, obtenerToken, API_BASE, urlArchivo } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { claseEstado, fechaCorta, fechaHora, edadDesde, TIPOS_INTERVENCION } from '../utils/format'
 import ExpedienteForm from '../components/ExpedienteForm'
@@ -279,7 +279,7 @@ function TimelineCard({ expedienteId, historial, despachantes, onCambio }) {
       fd.append('tipo', tipo)
       fd.append('descripcion', descripcion)
       if (archivo) fd.append('archivo', archivo)
-      const resp = await fetch('/api/historial/', { method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` }, body: fd })
+      const resp = await fetch(API_BASE + '/api/historial/', { method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` }, body: fd })
       if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.detail || 'Error') }
       setDescripcion(''); setArchivo(null); setTipo('informe'); setMostrarForm(false)
       onCambio()
@@ -323,7 +323,7 @@ function TimelineCard({ expedienteId, historial, despachantes, onCambio }) {
                   </div>
                   <div className="tl-desc">{h.descripcion}</div>
                   {h.archivo_url && (
-                    <a className="btn btn-ghost btn-sm" style={{ marginTop: 6 }} href={h.archivo_url} target="_blank" rel="noreferrer"><Icono nombre="clip" size={13} />Ver archivo</a>
+                    <a className="btn btn-ghost btn-sm" style={{ marginTop: 6 }} href={urlArchivo(h.archivo_url)} target="_blank" rel="noreferrer"><Icono nombre="clip" size={13} />Ver archivo</a>
                   )}
                 </div>
               )

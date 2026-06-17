@@ -1,8 +1,28 @@
 /**
  * Capa de acceso a la API.
  * Envuelve fetch agregando el token JWT y manejo de errores.
- * Todas las llamadas usan rutas relativas (/api/...) que Vite redirige al backend.
+ *
+ * En local las llamadas son relativas (/api/...) y Vite las redirige al backend.
+ * En producción con el frontend en otro dominio (ej. Vercel), se define
+ * VITE_API_BASE con la URL del backend (ej. https://defensoria.onrender.com) y
+ * todas las llamadas y archivos se dirigen ahí.
  */
+
+// URL base del backend.
+// - En tu PC y cuando el backend sirve el propio frontend: '' (mismo dominio).
+// - En Vercel (dominio *.vercel.app): apunta al backend de Render.
+// - Se puede forzar con la variable VITE_API_BASE.
+const _enVercel = typeof location !== 'undefined' && location.hostname.endsWith('.vercel.app')
+export const API_BASE = (
+  import.meta.env.VITE_API_BASE ||
+  (_enVercel ? 'https://defensoria.onrender.com' : '')
+).replace(/\/+$/, '')
+
+/** Resuelve la URL de un archivo adjunto (le antepone el backend si hace falta). */
+export function urlArchivo(u) {
+  if (!u) return u
+  return /^https?:\/\//.test(u) ? u : API_BASE + u
+}
 
 const TOKEN_KEY = 'defensoria_token'
 
@@ -49,7 +69,7 @@ export async function api(ruta, opciones = {}) {
     }
   }
 
-  const resp = await fetch(url, { method, headers, body: cuerpo })
+  const resp = await fetch(API_BASE + url, { method, headers, body: cuerpo })
 
   // 401 → token inválido/expirado: limpiar y forzar re-login
   if (resp.status === 401) {

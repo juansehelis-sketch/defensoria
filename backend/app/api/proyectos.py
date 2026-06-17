@@ -27,6 +27,7 @@ from app.database import get_db
 from app.models import Proyecto, Expediente, EntradaSalida, Usuario, Notificacion, Historial
 from app.schemas import Proyecto as ProyectoSchema
 from app.utils.deps import obtener_usuario_actual
+from app.services import storage
 
 router = APIRouter(prefix="/api/proyectos", tags=["proyectos"])
 
@@ -42,9 +43,7 @@ def _guardar_archivos(archivos: List[UploadFile]) -> list:
             continue
         ext = Path(arch.filename).suffix
         nombre_guardado = f"{uuid.uuid4().hex}{ext}"
-        destino = UPLOAD_DIR / nombre_guardado
-        with open(destino, "wb") as buffer:
-            shutil.copyfileobj(arch.file, buffer)
+        storage.guardar(nombre_guardado, arch.file.read(), arch.content_type)
         guardados.append({"nombre": arch.filename, "url": f"/uploads/{nombre_guardado}"})
     return guardados
 
@@ -141,13 +140,19 @@ def _docx_a_html(path: str) -> str:
 async def preview_docx(url: str, usuario: Usuario = Depends(obtener_usuario_actual)):
     """Devuelve el contenido de un .docx como HTML para previsualizar sin descargar."""
     nombre = Path(url).name
-    archivo = UPLOAD_DIR / nombre
-    if not archivo.exists():
+    datos = storage.leer(nombre)
+    if datos is None:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    import tempfile, os
+    tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
     try:
-        return {"html": _docx_a_html(str(archivo))}
+        tmp.write(datos)
+        tmp.close()
+        return {"html": _docx_a_html(tmp.name)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo leer el documento: {e}")
+    finally:
+        os.unlink(tmp.name)
 
 
 # ── Listados ───────────────────────────────────────────────────

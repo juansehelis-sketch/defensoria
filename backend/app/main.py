@@ -39,15 +39,30 @@ if settings.CORS_ORIGINS:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origenes,
+    # Permite cualquier despliegue del frontend en Vercel (producción y previews)
+    # sin tener que listar la URL exacta a mano.
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Carpeta de uploads
-uploads_dir = Path("uploads")
-uploads_dir.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Adjuntos: se sirven desde Supabase Storage (producción) o disco local (dev).
+# Se usa una ruta propia en lugar de StaticFiles para poder leer de cualquiera
+# de los dos orígenes según el entorno.
+import mimetypes as _mime
+from fastapi.responses import Response as _Response
+from app.services import storage as _storage
+
+
+@app.get("/uploads/{nombre}")
+async def servir_adjunto(nombre: str):
+    datos = _storage.leer(nombre)
+    if datos is None:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR({"detail": "Archivo no encontrado"}, status_code=404)
+    media = _mime.guess_type(nombre)[0] or "application/octet-stream"
+    return _Response(content=datos, media_type=media)
 
 # Incluir routers
 app.include_router(usuarios.router)

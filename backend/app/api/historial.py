@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models import Historial, Expediente, Usuario, Notificacion
 from app.schemas import Historial as HistorialSchema
 from app.utils.deps import obtener_usuario_actual
+from app.services import storage
 
 router = APIRouter(prefix="/api/historial", tags=["historial"])
 
@@ -54,9 +55,8 @@ async def crear_intervencion(
         # Nombre único para evitar colisiones
         ext = Path(archivo.filename).suffix
         nombre_guardado = f"{uuid.uuid4().hex}{ext}"
-        destino = UPLOAD_DIR / nombre_guardado
-        with open(destino, "wb") as buffer:
-            shutil.copyfileobj(archivo.file, buffer)
+        contenido = await archivo.read()
+        storage.guardar(nombre_guardado, contenido, archivo.content_type)
         archivo_url = f"/uploads/{nombre_guardado}"
 
     intervencion = Historial(

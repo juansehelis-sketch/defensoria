@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { api, obtenerToken } from '../utils/api'
+import { api, obtenerToken, API_BASE } from '../utils/api'
 import Modal from '../components/Modal'
 import PreviewArchivo from '../components/PreviewArchivo'
 import Icono from '../components/Icono'
@@ -165,7 +165,7 @@ function FormModelo({ carpetaId, onClose, onGuardado }) {
       fd.append('nombre', nombre)
       fd.append('contenido', contenido)
       if (archivo) fd.append('archivo', archivo)
-      const resp = await fetch('/api/modelos/plantillas', {
+      const resp = await fetch(API_BASE + '/api/modelos/plantillas', {
         method: 'POST',
         headers: { Authorization: `Bearer ${obtenerToken()}` },
         body: fd,

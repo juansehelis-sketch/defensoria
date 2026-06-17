@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { api, obtenerToken } from '../utils/api'
+import { api, obtenerToken, API_BASE } from '../utils/api'
 import Modal from './Modal'
 
 export default function ImportarPDF({ onClose, onImportado }) {
@@ -26,7 +26,7 @@ export default function ImportarPDF({ onClose, onImportado }) {
       const fd = new FormData()
       fd.append('file', archivo)
       // Llamamos directo con fetch para enviar FormData con el token
-      const resp = await fetch('/api/expedientes/parsear-pdf/', {
+      const resp = await fetch(API_BASE + '/api/expedientes/parsear-pdf/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${obtenerToken()}` },
         body: fd,
@@ -51,7 +51,7 @@ export default function ImportarPDF({ onClose, onImportado }) {
     try {
       const fd = new FormData()
       fd.append('file', archivo)
-      const resp = await fetch('/api/expedientes/bulk-from-pdf/', {
+      const resp = await fetch(API_BASE + '/api/expedientes/bulk-from-pdf/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${obtenerToken()}` },
         body: fd,
