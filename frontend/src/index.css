@@ -6,20 +6,20 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #f6f1f2;
+  --bg: #faf6f7;
   --surface: #fff;
-  --border: #e6dade;
-  /* Bordó institucional del Ministerio Público de la Defensa */
-  --navy: #7a2742;
-  --navy2: #93324f;
-  --navy3: #5f1d33;
-  /* Acento principal: bordó (botones, legible con texto blanco) */
-  --teal: #9b3151;
-  --teal-lt: #f9edf1;
-  /* Rosa institucional (acento secundario) */
-  --rosa: #c47089;
-  --rosa-lt: #f9edf1;
-  /* Colores del logo (acentos) */
+  --border: #ecdde3;
+  /* Bordó/frambuesa institucional del MPD — vivo, no apagado */
+  --navy: #8a2a4c;
+  --navy2: #a03659;
+  --navy3: #7e2444;   /* barra superior: rica pero no negra */
+  /* Acento principal: frambuesa (botones, legible con texto blanco) */
+  --teal: #b23a6a;
+  --teal-lt: #fceef4;
+  /* Rosa (acento secundario, suave) */
+  --rosa: #d57ea0;
+  --rosa-lt: #fceef4;
+  /* Colores del logo (acentos de energía) */
   --celeste: #9dc3e6;
   --celeste-lt: #eaf2fa;
   --sol: #f2c94c;
@@ -30,8 +30,8 @@
   --red-lt: #fdeeec;
   --green: #1e7a4d;
   --green-lt: #e3f5ea;
-  --text: #3a2630;
-  --muted: #8a727c;
+  --text: #43303a;
+  --muted: #8f7681;
   --r: 9px;
 }
 
