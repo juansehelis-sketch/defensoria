@@ -19,7 +19,8 @@ export default function ArmarDesdeExpediente({ expedienteId, onClose }) {
 
   if (elegida) return <ArmarEscrito plantilla={elegida} expedienteId={expedienteId} onClose={onClose} />
 
-  const conModelos = (carpetas || []).filter((c) => c.plantillas.some((p) => p.contenido))
+  const usable = (p) => p.contenido || /\.docx$/i.test(p.archivo_url || '')
+  const conModelos = (carpetas || []).filter((c) => c.plantillas.some(usable))
 
   return (
     <Modal titulo="Armar escrito · elegí un modelo" ancho={620} onClose={onClose}
@@ -32,7 +33,7 @@ export default function ArmarDesdeExpediente({ expedienteId, onClose }) {
         conModelos.map((c) => (
           <div key={c.id} style={{ marginBottom: 14 }}>
             <div className="card-title" style={{ marginBottom: 8 }}><Icono nombre="archivo" size={14} color="var(--teal)" /> {c.nombre}</div>
-            {c.plantillas.filter((p) => p.contenido).map((p) => (
+            {c.plantillas.filter(usable).map((p) => (
               <div key={p.id} className="row" style={{ justifyContent: 'space-between', border: '1px solid var(--border)', borderRadius: 7, padding: '8px 12px', marginBottom: 6 }}>
                 <span style={{ minWidth: 0 }}><Icono nombre="doc" size={14} color="var(--teal)" style={{ verticalAlign: '-2px', marginRight: 6 }} />{p.nombre}</span>
                 <button className="btn btn-teal btn-sm" onClick={() => setElegida(p)}>Usar</button>

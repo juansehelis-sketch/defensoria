@@ -175,7 +175,7 @@ function ModeloItem({ plantilla, conf, variables, onCambio }) {
           <div className="tl-meta">Agregado el {fechaCorta(plantilla.fecha_creacion)}</div>
         </div>
         <div className="row" style={{ gap: 6 }}>
-          {conf.arroba && plantilla.contenido && <button className="btn btn-teal btn-sm" onClick={() => setArmar(true)}><Icono nombre="firma" size={14} />Armar escrito</button>}
+          {conf.arroba && (plantilla.contenido || /\.docx$/i.test(plantilla.archivo_url || '')) && <button className="btn btn-teal btn-sm" onClick={() => setArmar(true)}><Icono nombre="firma" size={14} />Armar escrito</button>}
           {plantilla.contenido && <button className="btn btn-ghost btn-sm" onClick={() => { setVerContenido((v) => !v); setEditar(false) }}>{verContenido ? 'Ocultar' : 'Ver texto'}</button>}
           {plantilla.contenido && <button className="btn btn-ghost btn-sm" onClick={() => { setEditar((v) => !v); setVerContenido(false) }}>Editar</button>}
           <button className="btn btn-ghost btn-sm" onClick={eliminar} title="Eliminar"><Icono nombre="borrar" size={14} color="var(--red)" /></button>

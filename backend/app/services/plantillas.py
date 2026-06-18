@@ -149,3 +149,43 @@ def rellenar(texto: str, ctx: dict):
         return valor
 
     return _TOKEN_RE.sub(_repl, texto or ""), faltantes
+
+
+def _rellenar_parrafo_docx(p, ctx, faltantes):
+    """Reemplaza las @ en un párrafo de Word conservando el formato del párrafo."""
+    if "@" not in p.text:
+        return
+    nuevo, falt = rellenar(p.text, ctx)
+    for f in falt:
+        if f not in faltantes:
+            faltantes.append(f)
+    if nuevo != p.text:
+        if p.runs:
+            p.runs[0].text = nuevo
+            for r in p.runs[1:]:
+                r.text = ""
+        else:
+            p.text = nuevo
+
+
+def rellenar_documento_docx(datos_docx: bytes, ctx: dict):
+    """
+    Rellena las @variables dentro de un .docx (párrafos y celdas de tablas),
+    conservando el formato original. Devuelve (BytesIO del .docx, faltantes).
+    """
+    import io
+    from docx import Document
+
+    doc = Document(io.BytesIO(datos_docx))
+    faltantes = []
+    for p in doc.paragraphs:
+        _rellenar_parrafo_docx(p, ctx, faltantes)
+    for tabla in doc.tables:
+        for fila in tabla.rows:
+            for celda in fila.cells:
+                for p in celda.paragraphs:
+                    _rellenar_parrafo_docx(p, ctx, faltantes)
+    salida = io.BytesIO()
+    doc.save(salida)
+    salida.seek(0)
+    return salida, faltantes

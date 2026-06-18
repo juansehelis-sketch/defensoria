@@ -202,3 +202,48 @@ async def exportar_docx(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{seguro}.docx"'},
     )
+
+
+@router.post("/plantillas/{plantilla_id}/armar-docx")
+async def armar_docx(
+    plantilla_id: int,
+    datos: dict = Body(...),
+    db: Session = Depends(get_db),
+    _u: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Para modelos que tienen una plantilla Word (.docx): rellena las @ con los
+    datos del expediente conservando el formato original (membrete, tablas) y
+    devuelve el .docx listo para descargar.
+    """
+    plantilla = db.query(Plantilla).filter(Plantilla.id == plantilla_id).first()
+    if not plantilla:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    if not (plantilla.archivo_url or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Este modelo no tiene una plantilla Word (.docx)")
+
+    exp = db.query(Expediente).filter(Expediente.id == datos.get("expediente_id")).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+
+    contenido = storage.leer(Path(plantilla.archivo_url).name)
+    if contenido is None:
+        raise HTTPException(status_code=404, detail="No se encontró el archivo de la plantilla")
+
+    ctx = plantillas_svc.construir_contexto(db, exp)
+    salida, faltantes = plantillas_svc.rellenar_documento_docx(contenido, ctx)
+
+    # Los headers HTTP deben ser ASCII (latin-1): sanitizamos nombre y faltantes.
+    def _ascii(s: str) -> str:
+        return (s or "").encode("ascii", "ignore").decode("ascii")
+
+    seguro = "".join(c for c in _ascii(plantilla.nombre) if c.isalnum() or c in " -_").strip() or "escrito"
+    return StreamingResponse(
+        salida,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f'attachment; filename="{seguro}.docx"',
+            "X-Faltantes": _ascii(", ".join(faltantes))[:300],
+            "Access-Control-Expose-Headers": "X-Faltantes",
+        },
+    )
