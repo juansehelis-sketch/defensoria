@@ -106,9 +106,14 @@ async def health_check():
 # Si existe frontend/dist, se sirve desde acá: así la app corre con UN solo
 # servidor (más fácil de arrancar) y queda accesible en la red local.
 # En desarrollo (sin dist) se usa Vite aparte en el puerto 5173.
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+
+# Si hay una URL pública del frontend (ej. Vercel), el backend deja de servir la
+# app y rebota ahí: así queda UN solo link de la app y Render queda solo de motor.
+# Se activa poniendo FRONTEND_URL = https://...vercel.app en las variables de Render.
+_APP_PUBLICA = settings.FRONTEND_URL if settings.FRONTEND_URL.startswith("https://") else ""
 
 if DIST.exists():
     @app.get("/{full_path:path}")
@@ -116,6 +121,9 @@ if DIST.exists():
         # Las rutas de API y uploads no las maneja el frontend
         if full_path.startswith("api/") or full_path.startswith("uploads/"):
             return JSONResponse({"detail": "No encontrado"}, status_code=404)
+        # En producción con el frontend en Vercel: rebotar al único link de la app.
+        if _APP_PUBLICA:
+            return RedirectResponse(_APP_PUBLICA, status_code=307)
         archivo = DIST / full_path
         if full_path and archivo.is_file():
             # Los assets tienen hash en el nombre → se pueden cachear tranquilos
