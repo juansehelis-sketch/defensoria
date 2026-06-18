@@ -223,3 +223,47 @@ table.data tbody tr:hover td { background: #fafbfd; }
 .spin { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(0,0,0,.15); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-center { display: flex; align-items: center; justify-content: center; padding: 60px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE / CELULAR
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 760px) {
+  html, body, #root { font-size: 13.5px; }
+
+  /* Header: logo + usuario arriba (una fila), pestañas debajo (a lo ancho). */
+  .app-header { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px 10px; }
+  .header-logo { font-size: 13.5px; gap: 7px; }
+  .header-user { order: 2; gap: 8px; font-size: 11px; }
+  .main-nav { order: 3; width: 100%; gap: 4px; justify-content: flex-start; }
+  .nav-tab { padding: 6px 10px; font-size: 12.5px; gap: 6px; }
+
+  /* Páginas y tarjetas con menos margen para aprovechar el ancho. */
+  .page { padding: 14px 12px 44px; }
+  .page-title { font-size: 1.15rem; }
+  .page-header { gap: 10px; margin-bottom: 14px; }
+  .card-header { padding: 11px 14px; }
+  .card-body { padding: 14px; }
+
+  /* Tablas: más compactas; siguen deslizándose en horizontal con el dedo. */
+  table.data thead th, table.data td { padding: 8px 10px; }
+
+  /* Filtros y búsqueda: apilados a lo ancho. */
+  .filtros { gap: 8px; }
+  .filtros .field, .search-box { min-width: 0; width: 100%; }
+
+  /* Inputs a 16px: evita que el celular haga zoom solo al tocarlos. */
+  .field input, .field select, .field textarea { font-size: 16px; }
+
+  /* Modales casi a pantalla completa. */
+  .modal-overlay { padding: 14px 10px; }
+  .modal-footer { gap: 8px; }
+
+  .btn { padding: 9px 15px; }
+}
+
+@media (max-width: 430px) {
+  /* En celulares chicos, solo el isotipo (sin el texto) y sin el rol,
+     así entran cómodos el nombre y el botón Salir. */
+  .header-logo span { display: none; }
+  .header-user .header-badge { display: none; }
+}
