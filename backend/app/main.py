@@ -110,10 +110,19 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
-# Si hay una URL pública del frontend (ej. Vercel), el backend deja de servir la
-# app y rebota ahí: así queda UN solo link de la app y Render queda solo de motor.
-# Se activa poniendo FRONTEND_URL = https://...vercel.app en las variables de Render.
-_APP_PUBLICA = settings.FRONTEND_URL if settings.FRONTEND_URL.startswith("https://") else ""
+# Si hay una URL pública del frontend (Vercel), el backend deja de servir la app
+# y rebota ahí: así queda UN solo link de la app y Render queda solo de motor.
+# - En Render (variable RENDER=true) usa el link de Vercel por defecto.
+# - En tu PC local NO rebota (seguís usando la app local normalmente).
+# - Se puede sobreescribir poniendo FRONTEND_URL=https://... en las variables.
+import os as _os
+_EN_RENDER = bool(_os.getenv("RENDER"))
+if settings.FRONTEND_URL.startswith("https://"):
+    _APP_PUBLICA = settings.FRONTEND_URL
+elif _EN_RENDER:
+    _APP_PUBLICA = "https://defensoria-fawn.vercel.app"
+else:
+    _APP_PUBLICA = ""
 
 if DIST.exists():
     @app.get("/{full_path:path}")
