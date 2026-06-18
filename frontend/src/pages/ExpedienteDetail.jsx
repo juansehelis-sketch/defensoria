@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import { claseEstado, fechaCorta, fechaHora, edadDesde, TIPOS_INTERVENCION } from '../utils/format'
 import ExpedienteForm from '../components/ExpedienteForm'
 import PreviewArchivo from '../components/PreviewArchivo'
+import ArmarDesdeExpediente from '../components/ArmarDesdeExpediente'
 import Icono from '../components/Icono'
 
 export default function ExpedienteDetail() {
@@ -26,6 +27,7 @@ export default function ExpedienteDetail() {
   const [despachantes, setDespachantes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [editando, setEditando] = useState(false)
+  const [armando, setArmando] = useState(false)
 
   async function cargar() {
     setCargando(true)
@@ -68,7 +70,11 @@ export default function ExpedienteDetail() {
     <div className="page">
       <div className="row" style={{ marginBottom: 14 }}>
         <button className="btn btn-ghost btn-sm" onClick={() => navigate('/expedientes')}>← Volver al listado</button>
+        <div className="spacer" />
+        <button className="btn btn-teal btn-sm" onClick={() => setArmando(true)}><Icono nombre="firma" size={14} />Armar escrito</button>
       </div>
+
+      {armando && <ArmarDesdeExpediente expedienteId={Number(id)} onClose={() => setArmando(false)} />}
 
       {/* Encabezado tipo "portada" */}
       <div style={{ background: 'linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%)', color: '#fff', borderRadius: 14, padding: '22px 26px', marginBottom: 18 }}>

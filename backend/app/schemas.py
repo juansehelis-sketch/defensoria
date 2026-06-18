@@ -274,6 +274,7 @@ class Plantilla(BaseModel):
 class CarpetaModelo(BaseModel):
     id: int
     nombre: str
+    categoria: str = "modelos"
     fecha_creacion: datetime
     plantillas: List[Plantilla] = []
 

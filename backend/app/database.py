@@ -73,6 +73,7 @@ def get_db():
 _COLUMNAS_EXTRA = [
     ("audiencias", "asignado_a", "VARCHAR"),
     ("audiencias", "asistencia", "VARCHAR DEFAULT 'pendiente'"),
+    ("carpetas_modelo", "categoria", "VARCHAR DEFAULT 'modelos'"),
 ]
 
 

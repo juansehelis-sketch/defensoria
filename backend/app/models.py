@@ -191,11 +191,19 @@ class Defendido(Base):
 
 
 class CarpetaModelo(Base):
-    """Carpeta de modelos, agrupada por tipo de proceso."""
+    """
+    Carpeta de una biblioteca, agrupada por tipo de proceso o temática.
+    La 'categoria' define a qué biblioteca pertenece:
+      - modelos        → escritos con variables @ (por tipo de proceso)
+      - jurisprudencia → fallos (por temática)
+      - doctrina       → doctrina (por temática)
+      - dictamenes     → dictámenes de ejemplo (por tipo de proceso)
+    """
     __tablename__ = "carpetas_modelo"
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)  # ej: "Sucesiones", "Violencia familiar"
+    categoria = Column(String, default="modelos", index=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     plantillas = relationship("Plantilla", back_populates="carpeta", cascade="all, delete-orphan")
