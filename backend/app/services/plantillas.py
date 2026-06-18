@@ -25,13 +25,22 @@ CATALOGO = [
     ("resumen", "Resumen del caso", "Expediente"),
     ("despachante", "Despachante asignado", "Expediente"),
     ("conexos", "Expedientes conexos", "Expediente"),
-    # Del/los defendido/s
-    ("defendido", "Defendido principal (nombre)", "Defendido"),
-    ("defendidos", "Todos los defendidos", "Defendido"),
-    ("dni", "DNI del defendido", "Defendido"),
-    ("fecha_nacimiento", "Fecha de nacimiento", "Defendido"),
-    ("edad", "Edad (calculada)", "Defendido"),
-    ("vinculo", "Vínculo / rol del defendido", "Defendido"),
+    # Del/los defendido/s (suele haber más de uno → numerados)
+    ("defendidos", "Todos los defendidos (lista)", "Defendido"),
+    ("defendido1", "1º defendido — nombre", "Defendido"),
+    ("edad1", "1º defendido — edad", "Defendido"),
+    ("dni1", "1º defendido — DNI", "Defendido"),
+    ("defendido2", "2º defendido — nombre", "Defendido"),
+    ("edad2", "2º defendido — edad", "Defendido"),
+    ("dni2", "2º defendido — DNI", "Defendido"),
+    ("defendido3", "3º defendido — nombre", "Defendido"),
+    ("edad3", "3º defendido — edad", "Defendido"),
+    ("dni3", "3º defendido — DNI", "Defendido"),
+    ("defendido", "Defendido principal (= 1º)", "Defendido"),
+    ("edad", "Edad del principal", "Defendido"),
+    ("dni", "DNI del principal", "Defendido"),
+    ("fecha_nacimiento", "Fecha de nacimiento (principal)", "Defendido"),
+    ("vinculo", "Vínculo / rol (principal)", "Defendido"),
     # Institucionales / fecha
     ("defensora", "Nombre de la defensora", "Institucional"),
     ("defensoria", "Dependencia (Defensoría)", "Institucional"),
@@ -105,6 +114,14 @@ def construir_contexto(db, exp) -> dict:
         "ciudad": CIUDAD,
         "fecha": fecha_en_letras(hoy),
     }
+    # Defendidos numerados (1..6): generalmente hay más de uno.
+    for i in range(1, 7):
+        d = defs[i - 1] if i - 1 < len(defs) else None
+        ctx[f"defendido{i}"] = (d.nombre if d else "") or ""
+        ctx[f"edad{i}"] = _edad(d.fecha_nacimiento, hoy) if d else ""
+        ctx[f"dni{i}"] = (d.dni if d else "") or ""
+        ctx[f"vinculo{i}"] = (d.vinculo if d else "") or ""
+        ctx[f"nacimiento{i}"] = fecha_en_letras(d.fecha_nacimiento) if d else ""
     return ctx
 
 

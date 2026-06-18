@@ -16,10 +16,10 @@ import Icono from '../components/Icono'
 import { fechaCorta } from '../utils/format'
 
 const CATEGORIAS = [
-  { id: 'modelos', label: 'Modelos', sub: 'Escritos con variables @, por tipo de proceso', divide: 'tipo de proceso', item: 'modelo', arroba: true },
+  { id: 'modelos', label: 'Formularios de intervenciones', sub: 'Formularios con variables @, por tipo de proceso', divide: 'tipo de proceso', item: 'formulario', arroba: true },
+  { id: 'dictamenes', label: 'Dictámenes', sub: 'Dictámenes de ejemplo (con variables @), por tipo de proceso', divide: 'tipo de proceso', item: 'dictamen', arroba: true },
   { id: 'jurisprudencia', label: 'Jurisprudencia', sub: 'Fallos ordenados por temática', divide: 'temática', item: 'fallo', arroba: false },
   { id: 'doctrina', label: 'Doctrina', sub: 'Doctrina ordenada por temática', divide: 'temática', item: 'texto', arroba: false },
-  { id: 'dictamenes', label: 'Dictámenes de ejemplo', sub: 'Dictámenes viejos, por tipo de proceso', divide: 'tipo de proceso', item: 'dictamen', arroba: false },
 ]
 
 export default function Modelos() {
