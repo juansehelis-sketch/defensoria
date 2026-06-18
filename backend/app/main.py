@@ -2,7 +2,7 @@
 Aplicación principal FastAPI.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -110,28 +110,20 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
-# Si hay una URL pública del frontend (Vercel), el backend deja de servir la app
-# y rebota ahí: así queda UN solo link de la app y Render queda solo de motor.
-# - En Render (variable RENDER=true) usa el link de Vercel por defecto.
-# - En tu PC local NO rebota (seguís usando la app local normalmente).
-# - Se puede sobreescribir poniendo FRONTEND_URL=https://... en las variables.
-import os as _os
-_EN_RENDER = bool(_os.getenv("RENDER"))
-if settings.FRONTEND_URL.startswith("https://"):
-    _APP_PUBLICA = settings.FRONTEND_URL
-elif _EN_RENDER:
-    _APP_PUBLICA = "https://defensoria-fawn.vercel.app"
-else:
-    _APP_PUBLICA = ""
+# Link público de la app (Vercel). El backend deja de servir la app y rebota ahí
+# cuando lo piden por el dominio de Render: así queda UN solo link (Vercel) y
+# Render queda solo de motor. En localhost / red local se sirve normalmente.
+# Se puede cambiar el destino con la variable FRONTEND_URL=https://...
+_APP_PUBLICA = settings.FRONTEND_URL if settings.FRONTEND_URL.startswith("https://") else "https://defensoria-fawn.vercel.app"
 
 if DIST.exists():
     @app.get("/{full_path:path}")
-    async def servir_spa(full_path: str):
+    async def servir_spa(full_path: str, request: Request):
         # Las rutas de API y uploads no las maneja el frontend
         if full_path.startswith("api/") or full_path.startswith("uploads/"):
             return JSONResponse({"detail": "No encontrado"}, status_code=404)
-        # En producción con el frontend en Vercel: rebotar al único link de la app.
-        if _APP_PUBLICA:
+        # Si lo piden por el dominio público de Render → rebotar a la app de Vercel.
+        if "onrender.com" in request.headers.get("host", "").lower():
             return RedirectResponse(_APP_PUBLICA, status_code=307)
         archivo = DIST / full_path
         if full_path and archivo.is_file():
