@@ -85,3 +85,21 @@ async def intervenciones_por_despachante(
         .all()
     )
     return [{"despachante": n, "intervenciones": c} for n, c in resultados]
+
+
+# ── Copias de seguridad de la base local ───────────────────────
+from app.services import backup as backup_svc
+from app.utils.deps import obtener_usuario_actual
+
+
+@router.get("/backups")
+async def listar_backups(_u: Usuario = Depends(obtener_usuario_actual)):
+    """Lista las copias de seguridad disponibles (solo base local SQLite)."""
+    return {"backups": backup_svc.listar_backups()}
+
+
+@router.post("/backup")
+async def hacer_backup_ahora(_u: Usuario = Depends(obtener_usuario_actual)):
+    """Hace una copia de seguridad ahora mismo."""
+    b = backup_svc.hacer_backup()
+    return {"ok": bool(b), "nombre": b.name if b else None}

@@ -28,6 +28,7 @@ export default function Proyectos() {
 
   // Despachante arranca en "enviados"; los demás en "recibidos"
   const [tab, setTab] = useState(esDespachante ? 'enviados' : 'recibidos')
+  const [vista, setVista] = useState('tablero')  // tablero (kanban) | lista
   const [recibidos, setRecibidos] = useState([])
   const [enviados, setEnviados] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -65,24 +66,32 @@ export default function Proyectos() {
         )}
       </div>
 
-      {/* Tabs (despachante solo ve enviados) */}
-      {!esDespachante && (
-        <div className="row" style={{ marginBottom: 14 }}>
-          <button className={'btn btn-sm ' + (tab === 'recibidos' ? 'btn-navy' : 'btn-ghost')} onClick={() => setTab('recibidos')}>
-            Recibidos {recibidos.filter((p) => p.estado === 'enviado').length > 0 && `(${recibidos.filter((p) => p.estado === 'enviado').length})`}
-          </button>
-          <button className={'btn btn-sm ' + (tab === 'enviados' ? 'btn-navy' : 'btn-ghost')} onClick={() => setTab('enviados')}>
-            Enviados
-          </button>
+      {/* Controles: pestañas (recibidos/enviados) + vista (tablero/lista) */}
+      <div className="row" style={{ marginBottom: 14, justifyContent: 'space-between' }}>
+        <div className="row" style={{ gap: 8 }}>
+          {!esDespachante && (
+            <>
+              <button className={'btn btn-sm ' + (tab === 'recibidos' ? 'btn-navy' : 'btn-ghost')} onClick={() => setTab('recibidos')}>
+                Recibidos {recibidos.filter((p) => p.estado === 'enviado').length > 0 && `(${recibidos.filter((p) => p.estado === 'enviado').length})`}
+              </button>
+              <button className={'btn btn-sm ' + (tab === 'enviados' ? 'btn-navy' : 'btn-ghost')} onClick={() => setTab('enviados')}>Enviados</button>
+            </>
+          )}
         </div>
-      )}
+        <div className="row" style={{ gap: 4 }}>
+          <button className={'btn btn-sm ' + (vista === 'tablero' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('tablero')}>Tablero</button>
+          <button className={'btn btn-sm ' + (vista === 'lista' ? 'btn-navy' : 'btn-ghost')} onClick={() => setVista('lista')}>Lista</button>
+        </div>
+      </div>
 
-      <div className="card">
-        {cargando ? (
-          <div className="loading-center"><span className="spin" /></div>
-        ) : lista.length === 0 ? (
-          <div className="empty">{tab === 'recibidos' ? 'No tenés proyectos para revisar.' : 'No enviaste proyectos todavía.'}</div>
-        ) : (
+      {cargando ? (
+        <div className="card"><div className="loading-center"><span className="spin" /></div></div>
+      ) : vista === 'tablero' ? (
+        <Tablero lista={lista} tab={tab} onAbrir={setSeleccionado} />
+      ) : lista.length === 0 ? (
+        <div className="card"><div className="empty">{tab === 'recibidos' ? 'No tenés proyectos para revisar.' : 'No enviaste proyectos todavía.'}</div></div>
+      ) : (
+        <div className="card">
           <div className="table-scroll">
             <table className="data">
               <thead>
@@ -108,8 +117,8 @@ export default function Proyectos() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {seleccionado && (
         <DetalleProyecto
@@ -121,6 +130,42 @@ export default function Proyectos() {
       {mostrarEnviar && (
         <EnviarProyecto onClose={() => setMostrarEnviar(false)} onEnviado={() => { setMostrarEnviar(false); cargar() }} />
       )}
+    </div>
+  )
+}
+
+// ── Tablero (kanban) por estado ────────────────────────────────
+const COLS_KANBAN = [
+  { estado: 'enviado', titulo: 'A la firma · esperando', color: 'var(--amber)' },
+  { estado: 'en_correccion', titulo: 'Devuelto para corregir', color: 'var(--muted)' },
+  { estado: 'subido', titulo: 'Subido al expediente', color: 'var(--green)' },
+]
+
+function Tablero({ lista, tab, onAbrir }) {
+  return (
+    <div className="kanban">
+      {COLS_KANBAN.map((col) => {
+        const items = lista.filter((p) => p.estado === col.estado)
+        return (
+          <div key={col.estado} className="kanban-col">
+            <div className="kanban-col-head">
+              <span><span style={{ color: col.color }}>●</span> {col.titulo}</span>
+              <span className="kanban-count">{items.length}</span>
+            </div>
+            <div className="kanban-col-body">
+              {items.length === 0 ? (
+                <div className="kanban-vacio">— sin proyectos —</div>
+              ) : items.map((p) => (
+                <div key={p.id} className="kanban-card" style={{ borderLeftColor: col.color }} onClick={() => onAbrir(p)}>
+                  <div className="mono" style={{ fontSize: 12, fontWeight: 600, color: 'var(--navy)' }}>{p.expediente_numero}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, margin: '3px 0', lineHeight: 1.35 }}>{p.titulo}</div>
+                  <div className="tl-meta">{tab === 'recibidos' ? 'De ' + (p.remitente_nombre || '—') : 'Para ' + (p.destinatario_nombre || '—')} · {fechaHora(p.fecha_envio)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

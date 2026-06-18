@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
+import Icono from '../components/Icono'
 
 export default function Reportes() {
   const navigate = useNavigate()
@@ -16,6 +17,17 @@ export default function Reportes() {
   const [sinMovimiento, setSinMovimiento] = useState(null)
   const [dias, setDias] = useState(30)
   const [cargando, setCargando] = useState(true)
+  const [backups, setBackups] = useState([])
+  const [haciendoBackup, setHaciendoBackup] = useState(false)
+
+  async function cargarBackups() {
+    try { const r = await api('/api/reportes/backups'); setBackups(r.backups || []) } catch { /* web sin SQLite */ }
+  }
+  async function hacerBackup() {
+    setHaciendoBackup(true)
+    try { await api('/api/reportes/backup', { method: 'POST' }); await cargarBackups() }
+    catch (e) { alert('No se pudo: ' + e.message) } finally { setHaciendoBackup(false) }
+  }
 
   async function cargarBase() {
     try {
@@ -36,7 +48,7 @@ export default function Reportes() {
   }
 
   useEffect(() => {
-    Promise.all([cargarBase(), cargarSinMovimiento(dias)]).finally(() => setCargando(false))
+    Promise.all([cargarBase(), cargarSinMovimiento(dias), cargarBackups()]).finally(() => setCargando(false))
   }, [])
 
   const maxJuzgado = Math.max(1, ...porJuzgado.map((x) => x.cantidad))
@@ -105,6 +117,31 @@ export default function Reportes() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Copias de seguridad */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title"><Icono nombre="candado" size={14} color="var(--teal)" /> Copias de seguridad (base local)</span>
+          <button className="btn btn-ghost btn-sm" onClick={hacerBackup} disabled={haciendoBackup}>
+            {haciendoBackup ? <span className="spin" /> : 'Hacer copia ahora'}
+          </button>
+        </div>
+        <div className="card-body">
+          <div className="tl-meta" style={{ marginBottom: 10 }}>
+            Se hacen solas al abrir la app y cada 6 horas. Se guardan las últimas 20 en la carpeta <code>backups/</code> de tu PC.
+          </div>
+          {backups.length === 0 ? (
+            <div className="empty" style={{ padding: 16 }}>Todavía no hay copias (o estás en la versión web, que respalda Supabase).</div>
+          ) : (
+            backups.slice(0, 6).map((b) => (
+              <div key={b.nombre} className="row" style={{ justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid #edf0f5' }}>
+                <span className="mono">{b.nombre}</span>
+                <span className="tl-meta">{b.kb} KB</span>
+              </div>
+            ))
           )}
         </div>
       </div>

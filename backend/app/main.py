@@ -95,6 +95,16 @@ async def startup_event():
         db.close()
     print("[OK] Base de datos inicializada")
 
+    # Copia de seguridad de la base local (solo SQLite): al arrancar y cada 6 hs.
+    try:
+        from app.services import backup as backup_svc
+        b = backup_svc.hacer_backup()
+        if b:
+            print(f"[OK] Copia de seguridad: {b.name}")
+        backup_svc.iniciar_backups_periodicos(horas=6)
+    except Exception as e:
+        print(f"[!] Backup no disponible: {e}")
+
 
 @app.get("/api/health")
 async def health_check():
