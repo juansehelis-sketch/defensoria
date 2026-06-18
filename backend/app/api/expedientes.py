@@ -312,28 +312,6 @@ async def eliminar_expediente(expediente_id: int, db: Session = Depends(get_db))
     return {"message": f"Expediente {expediente.numero} archivado"}
 
 
-@router.post("/admin/limpiar-datos-de-prueba")
-async def limpiar_datos_de_prueba(clave: str = "", db: Session = Depends(get_db)):
-    """
-    TEMPORAL: borra TODOS los datos de casos (expedientes y todo lo vinculado)
-    para dejar la web limpia. Conserva usuarios y la biblioteca de modelos.
-    Se elimina del código después de usarlo.
-    """
-    if clave != "limpiar-mpd-2026":
-        raise HTTPException(status_code=403, detail="Clave incorrecta")
-    from app.models import (
-        EntradaSalida, Proyecto, Audiencia, Historial,
-        Defendido, BorradoListado, Notificacion,
-    )
-    borrados = {}
-    # Orden: primero los hijos, al final los expedientes (por las claves foráneas).
-    for M in [Notificacion, Proyecto, Audiencia, Historial, Defendido,
-              EntradaSalida, BorradoListado, Expediente]:
-        borrados[M.__tablename__] = db.query(M).delete()
-    db.commit()
-    return {"ok": True, "borrados": borrados}
-
-
 def _limpiar_observaciones(obs: str) -> str:
     """
     Limpia las observaciones que se copian a una entrada nueva:
