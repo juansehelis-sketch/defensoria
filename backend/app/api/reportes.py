@@ -5,8 +5,9 @@ Endpoints de reportes:
 - Intervenciones por despachante
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body, HTTPException
 from fastapi.responses import StreamingResponse
+from pathlib import Path
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -97,14 +98,36 @@ from app.utils.deps import obtener_usuario_actual
 @router.get("/backups")
 async def listar_backups(_u: Usuario = Depends(obtener_usuario_actual)):
     """Lista las copias de seguridad disponibles (solo base local SQLite)."""
-    return {"backups": backup_svc.listar_backups()}
+    return {"backups": backup_svc.listar_backups(), "nube": backup_svc.usa_nube()}
 
 
 @router.post("/backup")
 async def hacer_backup_ahora(_u: Usuario = Depends(obtener_usuario_actual)):
-    """Hace una copia de seguridad ahora mismo."""
+    """Hace una copia de seguridad ahora mismo (local + nube si está configurada)."""
     b = backup_svc.hacer_backup()
     return {"ok": bool(b), "nombre": b.name if b else None}
+
+
+@router.get("/backups/descargar/{nombre}")
+async def descargar_backup(nombre: str, _u: Usuario = Depends(obtener_usuario_actual)):
+    """Descarga una copia de seguridad para guardarla aparte."""
+    p = backup_svc.BACKUP_DIR / Path(nombre).name
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Copia no encontrada")
+    return StreamingResponse(
+        io.BytesIO(p.read_bytes()),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{Path(nombre).name}"'},
+    )
+
+
+@router.post("/backups/restaurar")
+async def restaurar_backup(datos: dict = Body(...), db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    """Restaura la base desde una copia (hace un resguardo del estado actual primero)."""
+    res = backup_svc.restaurar(Path(datos.get("nombre", "")).name, db)
+    if not res:
+        raise HTTPException(status_code=400, detail="No se pudo restaurar (¿existe la copia?)")
+    return res
 
 
 # ── Reporte mensual (para elevar a la Defensoría General) ──────

@@ -20,6 +20,7 @@ export default function Reportes() {
   const [dias, setDias] = useState(30)
   const [cargando, setCargando] = useState(true)
   const [backups, setBackups] = useState([])
+  const [nube, setNube] = useState(false)
   const [haciendoBackup, setHaciendoBackup] = useState(false)
   const ahora = new Date()
   const [periodo, setPeriodo] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1 })
@@ -44,12 +45,24 @@ export default function Reportes() {
   }
 
   async function cargarBackups() {
-    try { const r = await api('/api/reportes/backups'); setBackups(r.backups || []) } catch { /* web sin SQLite */ }
+    try { const r = await api('/api/reportes/backups'); setBackups(r.backups || []); setNube(!!r.nube) } catch { /* web sin SQLite */ }
   }
   async function hacerBackup() {
     setHaciendoBackup(true)
     try { await api('/api/reportes/backup', { method: 'POST' }); await cargarBackups() }
     catch (e) { alert('No se pudo: ' + e.message) } finally { setHaciendoBackup(false) }
+  }
+  function descargarBackup(nombre) {
+    fetch(`${API_BASE}/api/reportes/backups/descargar/${encodeURIComponent(nombre)}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
+      .then((r) => r.blob()).then((blob) => {
+        const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = nombre
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u)
+      })
+  }
+  async function restaurarBackup(nombre) {
+    if (!confirm(`¿Restaurar la base desde "${nombre}"?\nSe reemplaza la base actual (se hace una copia de resguardo antes). Después reiniciá la app.`)) return
+    try { await api('/api/reportes/backups/restaurar', { method: 'POST', body: { nombre } }); alert('Restaurado. Cerrá y volvé a abrir la app para usar la copia restaurada.') }
+    catch (e) { alert('No se pudo: ' + e.message) }
   }
 
   async function cargarBase() {
@@ -220,16 +233,22 @@ export default function Reportes() {
           </button>
         </div>
         <div className="card-body">
-          <div className="tl-meta" style={{ marginBottom: 10 }}>
-            Se hacen solas al abrir la app y cada 6 horas. Se guardan las últimas 20 en la carpeta <code>backups/</code> de tu PC.
+          <div className="tl-meta" style={{ marginBottom: 5 }}>
+            Se hacen solas al abrir la app y cada 6 horas (últimas 20 en <code>backups/</code>).
+          </div>
+          <div className="tl-meta" style={{ marginBottom: 12 }}>
+            Respaldo en la nube (Supabase): <strong style={{ color: nube ? 'var(--green)' : 'var(--muted)' }}>{nube ? 'activo' : 'inactivo'}</strong>
           </div>
           {backups.length === 0 ? (
-            <div className="empty" style={{ padding: 16 }}>Todavía no hay copias (o estás en la versión web, que respalda Supabase).</div>
+            <div className="empty" style={{ padding: 16 }}>Todavía no hay copias (o estás en la versión web).</div>
           ) : (
-            backups.slice(0, 6).map((b) => (
-              <div key={b.nombre} className="row" style={{ justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid #edf0f5' }}>
-                <span className="mono">{b.nombre}</span>
-                <span className="tl-meta">{b.kb} KB</span>
+            backups.slice(0, 8).map((b) => (
+              <div key={b.nombre} className="row" style={{ justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #edf0f5' }}>
+                <span className="mono" style={{ fontSize: 13, minWidth: 0 }}>{b.nombre} <span className="tl-meta">· {b.kb} KB</span></span>
+                <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => descargarBackup(b.nombre)}>Descargar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => restaurarBackup(b.nombre)}>Restaurar</button>
+                </div>
               </div>
             ))
           )}

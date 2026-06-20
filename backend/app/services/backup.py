@@ -44,7 +44,49 @@ def hacer_backup():
         print(f"[!] No se pudo hacer el backup: {e}")
         return None
     _limpiar_viejos()
+    _subir_a_nube(destino)
     return destino
+
+
+def usa_nube() -> bool:
+    """True si los backups también se suben a Supabase (configurado)."""
+    try:
+        from app.services import storage
+        return storage.usa_supabase()
+    except Exception:
+        return False
+
+
+def _subir_a_nube(ruta):
+    """Sube la copia a Supabase Storage (carpeta backups/) si está configurado."""
+    try:
+        from app.services import storage
+        if storage.usa_supabase():
+            storage.guardar(f"backups/{ruta.name}", ruta.read_bytes(), "application/octet-stream")
+    except Exception as e:
+        print(f"[!] No se pudo subir el backup a la nube: {e}")
+
+
+def restaurar(nombre: str, db_session=None):
+    """
+    Restaura la base local desde una copia. Antes hace una copia de seguridad del
+    estado actual. Hay que reiniciar la app para que tome la base restaurada.
+    """
+    destino = _ruta_sqlite()
+    origen = BACKUP_DIR / nombre
+    if destino is None or not origen.exists():
+        return None
+    hacer_backup()  # resguardo del estado actual por las dudas
+    from app.database import engine
+    if db_session is not None:
+        try:
+            db_session.close()
+        except Exception:
+            pass
+    engine.dispose()  # cerrar conexiones para poder reemplazar el archivo
+    import shutil
+    shutil.copy2(origen, destino)
+    return {"ok": True, "restaurado": nombre}
 
 
 def _limpiar_viejos():
