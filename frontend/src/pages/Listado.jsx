@@ -165,7 +165,7 @@ export default function Listado() {
       <div className="row" style={{ gap: 16, marginBottom: 8, fontSize: 12, color: 'var(--muted)' }}>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef3c7', border: '1px solid #e6d28a' }} /> Enviado a la firma</span>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#dcfce7', border: '1px solid #a7e3bf' }} /> Subido / vista cancelada</span>
-        <span style={{ marginLeft: 'auto' }}>Hacé click en cualquier celda para editarla. La flecha abre el expediente.</span>
+        <span style={{ marginLeft: 'auto' }}>Click para editar · Tab/Enter para moverte (como en Excel) · la flecha abre el expediente.</span>
       </div>
 
       <div className="card">
