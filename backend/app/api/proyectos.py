@@ -291,6 +291,8 @@ async def devolver_con_comentarios(
     ))
     _registrar_historial(db, p.expediente_id, usuario, "otro",
                          f"Proyecto devuelto con comentarios: {comentario}")
+    from app.utils.auditoria import registrar
+    registrar(db, usuario, "devolvió", "proyecto", f"Expte. {p.expediente_numero} — {p.titulo}")
     db.commit()
     db.refresh(p)
     return p
@@ -433,6 +435,8 @@ async def marcar_subido(
         usuario_id=usuario.id,
         archivo_url=dictamen_url,
     ))
+    from app.utils.auditoria import registrar
+    registrar(db, usuario, "subió", "proyecto", f"Dictamen subido — expte. {p.expediente_numero}")
     db.commit()
     db.refresh(p)
     return p

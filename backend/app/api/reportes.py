@@ -130,6 +130,17 @@ async def restaurar_backup(datos: dict = Body(...), db: Session = Depends(get_db
     return res
 
 
+@router.get("/auditoria")
+async def auditoria(limit: int = 60, db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    """Historial de cambios: quién hizo qué y cuándo (acciones importantes)."""
+    from app.models import Auditoria
+    items = db.query(Auditoria).order_by(Auditoria.fecha_creacion.desc()).limit(limit).all()
+    return [{
+        "usuario": a.usuario_nombre, "accion": a.accion,
+        "entidad": a.entidad, "detalle": a.detalle, "fecha": a.fecha_creacion,
+    } for a in items]
+
+
 # ── Reporte mensual (para elevar a la Defensoría General) ──────
 
 def _rango_mes(anio: int, mes: int):

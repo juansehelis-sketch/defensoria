@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, API_BASE, obtenerToken } from '../utils/api'
 import Icono from '../components/Icono'
+import { fechaHora } from '../utils/format'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -26,6 +27,7 @@ export default function Reportes() {
   const [periodo, setPeriodo] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1 })
   const [mensual, setMensual] = useState(null)
   const [carga, setCarga] = useState([])
+  const [auditoria, setAuditoria] = useState([])
 
   async function cargarMensual() {
     try { setMensual(await api('/api/reportes/mensual', { params: periodo })) } catch (e) { console.error(e) }
@@ -87,6 +89,7 @@ export default function Reportes() {
     Promise.all([
       cargarBase(), cargarSinMovimiento(dias), cargarBackups(),
       api('/api/reportes/carga-equipo').then(setCarga).catch(() => {}),
+      api('/api/reportes/auditoria').then(setAuditoria).catch(() => {}),
     ]).finally(() => setCargando(false))
   }, [])
 
@@ -159,6 +162,31 @@ export default function Reportes() {
                       <td className="mono">{f.enviados_pendientes}</td>
                       <td>{f.demorados > 0 ? <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>{f.demorados}</span> : <span className="dash">—</span>}</td>
                       <td className="mono">{f.expedientes_activos ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Historial de cambios (auditoría) */}
+      <div className="card">
+        <div className="card-header"><span className="card-title">Historial de cambios (auditoría)</span><span className="tl-meta">quién hizo qué y cuándo</span></div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {auditoria.length === 0 ? <div className="empty">Sin movimientos registrados todavía.</div> : (
+            <div className="table-scroll" style={{ maxHeight: 320 }}>
+              <table className="data">
+                <thead><tr><th>Cuándo</th><th>Quién</th><th>Acción</th><th>Qué</th><th>Detalle</th></tr></thead>
+                <tbody>
+                  {auditoria.map((a, i) => (
+                    <tr key={i}>
+                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fechaHora(a.fecha)}</td>
+                      <td>{a.usuario || '—'}</td>
+                      <td><span className="badge badge-archivo">{a.accion}</span></td>
+                      <td className="muted">{a.entidad}</td>
+                      <td className="muted" style={{ maxWidth: 340 }}>{a.detalle}</td>
                     </tr>
                   ))}
                 </tbody>

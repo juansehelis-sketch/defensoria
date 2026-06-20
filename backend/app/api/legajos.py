@@ -56,6 +56,8 @@ async def actualizar(legajo_id: int, datos: dict = Body(...), db: Session = Depe
 async def eliminar(legajo_id: int, db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
     legajo = db.query(Legajo).filter(Legajo.id == legajo_id).first()
     if legajo:
+        from app.utils.auditoria import registrar
+        registrar(db, _u, "borró", "legajo", legajo.nombre or "")
         for e in legajo.expedientes:
             e.legajo_id = None
         db.delete(legajo)

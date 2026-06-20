@@ -283,3 +283,16 @@ class Tarea(Base):
     hecha = Column(Boolean, default=False)
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
+
+
+class Auditoria(Base):
+    """Registro de auditoría: quién hizo qué y cuándo (acciones importantes)."""
+    __tablename__ = "auditoria"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    usuario_nombre = Column(String, nullable=True)
+    accion = Column(String)        # creó / editó / borró / subió / devolvió
+    entidad = Column(String)       # listado / expediente / legajo / proyecto / modelo
+    detalle = Column(Text, nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.now, index=True)

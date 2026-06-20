@@ -264,6 +264,8 @@ async def eliminar_entrada_salida(
     # Borrar la fila
     entrada = db.query(EntradaSalida).filter(EntradaSalida.id == entrada_id).first()
     if entrada:
+        from app.utils.auditoria import registrar
+        registrar(db, usuario, "borró", "listado", f"{snap.get('numero_expediente') or ''} {snap.get('autos') or ''}".strip())
         db.delete(entrada)
         db.commit()
     return {"message": "Registro eliminado"}
