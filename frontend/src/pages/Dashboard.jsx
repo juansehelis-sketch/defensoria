@@ -12,6 +12,7 @@ import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { fechaCorta } from '../utils/format'
 import TablaListado from '../components/TablaListado'
+import MisTareas from '../components/MisTareas'
 
 export default function Dashboard() {
   const { usuario } = useAuth()
@@ -102,6 +103,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Agenda personal */}
+      <MisTareas />
 
       {/* Tabla 1: pendientes de enviar a la firma */}
       <div className="card">

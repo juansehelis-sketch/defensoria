@@ -315,6 +315,27 @@ class Legajo(LegajoBase):
         from_attributes = True
 
 
+# ── Tareas (agenda personal) ───────────────────────────────────
+class TareaBase(BaseModel):
+    titulo: str
+    detalle: Optional[str] = None
+    fecha_limite: Optional[date] = None
+    expediente_id: Optional[int] = None
+
+
+class TareaCreate(TareaBase):
+    pass
+
+
+class Tarea(TareaBase):
+    id: int
+    hecha: bool = False
+    fecha_creacion: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ═══════════════════════════════════════════════════════════════
 # NOTIFICACIONES
 # ═══════════════════════════════════════════════════════════════

@@ -269,3 +269,17 @@ class Notificacion(Base):
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
     leida = Column(Boolean, default=False)
     fecha_creacion = Column(DateTime, default=datetime.now)
+
+
+class Tarea(Base):
+    """Tarea personal de cada usuario (agenda / 'mis tareas')."""
+    __tablename__ = "tareas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), index=True)
+    titulo = Column(String)
+    detalle = Column(Text, nullable=True)
+    fecha_limite = Column(Date, nullable=True)
+    hecha = Column(Boolean, default=False)
+    expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.now)
