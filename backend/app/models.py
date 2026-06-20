@@ -37,6 +37,7 @@ class Expediente(Base):
     despachante_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     fecha_entrada = Column(Date, index=True)
     conexos = Column(JSON, default=list)  # Lista de números de expediente conexos
+    legajo_id = Column(Integer, ForeignKey("legajos.id"), nullable=True, index=True)
     observaciones = Column(Text)
     resumen = Column(Text)  # Resumen libre del caso (lo mantienen los despachantes)
     fecha_creacion = Column(DateTime, default=datetime.now)
@@ -54,6 +55,7 @@ class Expediente(Base):
         return self.despachante.nombre if self.despachante else None
     audiencias = relationship("Audiencia", back_populates="expediente", cascade="all, delete-orphan")
     entrada_salida = relationship("EntradaSalida", back_populates="expediente", cascade="all, delete-orphan")
+    legajo = relationship("Legajo", back_populates="expedientes")
 
 
 class EntradaSalida(Base):
@@ -188,6 +190,25 @@ class Defendido(Base):
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     expediente = relationship("Expediente", back_populates="defendidos")
+
+
+class Legajo(Base):
+    """
+    Legajo de una persona (NNA / representado): agrupa TODOS sus expedientes y
+    conexos. Los números se capturan solos desde las observaciones (lo que va
+    después de "conexos:") y también se pueden agregar a mano.
+    """
+    __tablename__ = "legajos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, index=True)
+    dni = Column(String, nullable=True)
+    fecha_nacimiento = Column(Date, nullable=True)
+    observaciones = Column(Text, nullable=True)
+    numeros = Column(JSON, default=list)  # números de expediente del legajo (conexos)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+
+    expedientes = relationship("Expediente", back_populates="legajo")
 
 
 class CarpetaModelo(Base):

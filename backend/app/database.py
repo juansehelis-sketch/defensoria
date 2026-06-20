@@ -74,6 +74,7 @@ _COLUMNAS_EXTRA = [
     ("audiencias", "asignado_a", "VARCHAR"),
     ("audiencias", "asistencia", "VARCHAR DEFAULT 'pendiente'"),
     ("carpetas_modelo", "categoria", "VARCHAR DEFAULT 'modelos'"),
+    ("expedientes", "legajo_id", "INTEGER"),
 ]
 
 

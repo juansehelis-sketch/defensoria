@@ -10,6 +10,7 @@ import Icono from './Icono'
 const TABS = [
   { to: '/', label: 'Inicio', icono: 'inicio', end: true },
   { to: '/expedientes', label: 'Expedientes', icono: 'expedientes' },
+  { to: '/legajos', label: 'Legajos', icono: 'personas' },
   { to: '/a-la-firma', label: 'A la firma', icono: 'firma' },
   { to: '/audiencias', label: 'Audiencias', icono: 'audiencias' },
   { to: '/modelos', label: 'Modelos', icono: 'modelos' },

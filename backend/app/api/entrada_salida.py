@@ -216,6 +216,13 @@ async def actualizar_entrada_salida(
             value = _a_fecha(value)
         setattr(entrada, key, value)
 
+    # Si se editaron las observaciones y hay un "conexos:", se suman solos al
+    # legajo de la persona (cuando el expediente ya tiene legajo).
+    if "observaciones" in entrada_update and entrada.expediente_id:
+        from app.services import legajos as legajos_svc
+        exp = db.query(Expediente).filter(Expediente.id == entrada.expediente_id).first()
+        legajos_svc.capturar_desde_observaciones(db, exp, entrada.observaciones)
+
     db.commit()
     db.refresh(entrada)
     return entrada

@@ -28,6 +28,7 @@ export default function ExpedienteDetail() {
   const [cargando, setCargando] = useState(true)
   const [editando, setEditando] = useState(false)
   const [armando, setArmando] = useState(false)
+  const [legajo, setLegajo] = useState(null)
 
   async function cargar() {
     setCargando(true)
@@ -42,6 +43,8 @@ export default function ExpedienteDetail() {
       setHistorial(hist)
       setDefendidos(defs)
       setDespachantes(us)
+      if (exp.legajo_id) api(`/api/legajos/${exp.legajo_id}`).then(setLegajo).catch(() => setLegajo(null))
+      else setLegajo(null)
     } catch (e) {
       console.error(e)
     } finally {
@@ -60,6 +63,14 @@ export default function ExpedienteDetail() {
     } catch (e) { alert(e.message) }
   }
 
+  async function abrirLegajo() {
+    if (legajo) { navigate(`/legajos?abrir=${legajo.id}`); return }
+    try {
+      const l = await api('/api/legajos/desde-expediente', { method: 'POST', body: { expediente_id: Number(id) } })
+      navigate(`/legajos?abrir=${l.id}`)
+    } catch (e) { alert(e.message) }
+  }
+
   if (cargando) return <div className="loading-center"><span className="spin" /></div>
   if (!expediente) return <div className="page"><div className="empty">Expediente no encontrado.</div></div>
 
@@ -75,6 +86,20 @@ export default function ExpedienteDetail() {
       </div>
 
       {armando && <ArmarDesdeExpediente expedienteId={Number(id)} onClose={() => setArmando(false)} />}
+
+      <div className="card" style={{ borderLeft: '3px solid var(--teal)' }}>
+        <div className="card-body" style={{ padding: '12px 16px' }}>
+          <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <span className="card-title"><Icono nombre="personas" size={14} color="var(--teal)" /> Legajo de la persona</span>
+              <div className="tl-meta" style={{ marginTop: 2 }}>
+                {legajo ? `${legajo.nombre} · ${(legajo.numeros || []).length} expediente(s) agrupados` : 'Agrupá todos los expedientes y conexos de esta persona'}
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={abrirLegajo} style={{ flexShrink: 0 }}>{legajo ? 'Ver legajo' : 'Crear / abrir legajo'}</button>
+          </div>
+        </div>
+      </div>
 
       {/* Encabezado tipo "portada" */}
       <div style={{ background: 'linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%)', color: '#fff', borderRadius: 14, padding: '22px 26px', marginBottom: 18 }}>

@@ -13,6 +13,7 @@ import Proyectos from './pages/Proyectos'
 import Audiencias from './pages/Audiencias'
 import Reportes from './pages/Reportes'
 import Modelos from './pages/Modelos'
+import Legajos from './pages/Legajos'
 
 function RutaProtegida({ children }) {
   const { usuario, cargando } = useAuth()
@@ -39,6 +40,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="expedientes" element={<Listado />} />
         <Route path="expedientes/:id" element={<ExpedienteDetail />} />
+        <Route path="legajos" element={<Legajos />} />
         <Route path="a-la-firma" element={<Proyectos />} />
         <Route path="audiencias" element={<Audiencias />} />
         <Route path="modelos" element={<Modelos />} />

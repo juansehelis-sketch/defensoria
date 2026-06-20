@@ -103,6 +103,7 @@ class Defendido(DefendidoBase):
 
 class Expediente(ExpedienteBase):
     id: int
+    legajo_id: Optional[int] = None
     fecha_creacion: datetime
     fecha_actualizacion: datetime
 
@@ -277,6 +278,38 @@ class CarpetaModelo(BaseModel):
     categoria: str = "modelos"
     fecha_creacion: datetime
     plantillas: List[Plantilla] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ── Legajos por persona ────────────────────────────────────────
+class LegajoBase(BaseModel):
+    nombre: str
+    dni: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
+    observaciones: Optional[str] = None
+
+
+class LegajoCreate(LegajoBase):
+    numeros: List[str] = []
+
+
+class ExpedienteEnLegajo(BaseModel):
+    id: int
+    numero: str
+    caratula: Optional[str] = None
+    estado: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class Legajo(LegajoBase):
+    id: int
+    numeros: List[str] = []
+    fecha_creacion: datetime
+    expedientes: List[ExpedienteEnLegajo] = []
 
     class Config:
         from_attributes = True

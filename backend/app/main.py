@@ -18,6 +18,7 @@ from app.api import (
     reportes,
     proyectos,
     modelos,
+    legajos,
 )
 
 # Crear app
@@ -74,6 +75,7 @@ app.include_router(panel.router)
 app.include_router(reportes.router)
 app.include_router(proyectos.router)
 app.include_router(modelos.router)
+app.include_router(legajos.router)
 
 # Inicializar BD al startup
 @app.on_event("startup")
