@@ -7,8 +7,10 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../utils/api'
+import { api, API_BASE, obtenerToken } from '../utils/api'
 import Icono from '../components/Icono'
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 export default function Reportes() {
   const navigate = useNavigate()
@@ -19,6 +21,27 @@ export default function Reportes() {
   const [cargando, setCargando] = useState(true)
   const [backups, setBackups] = useState([])
   const [haciendoBackup, setHaciendoBackup] = useState(false)
+  const ahora = new Date()
+  const [periodo, setPeriodo] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1 })
+  const [mensual, setMensual] = useState(null)
+  const [carga, setCarga] = useState([])
+
+  async function cargarMensual() {
+    try { setMensual(await api('/api/reportes/mensual', { params: periodo })) } catch (e) { console.error(e) }
+  }
+  useEffect(() => { cargarMensual() }, [periodo])
+
+  function descargarExcel() {
+    const url = `${API_BASE}/api/reportes/mensual/excel?anio=${periodo.anio}&mes=${periodo.mes}`
+    fetch(url, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const u = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = u; a.download = `reporte_${periodo.anio}_${String(periodo.mes).padStart(2, '0')}.xlsx`
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u)
+      })
+  }
 
   async function cargarBackups() {
     try { const r = await api('/api/reportes/backups'); setBackups(r.backups || []) } catch { /* web sin SQLite */ }
@@ -48,7 +71,10 @@ export default function Reportes() {
   }
 
   useEffect(() => {
-    Promise.all([cargarBase(), cargarSinMovimiento(dias), cargarBackups()]).finally(() => setCargando(false))
+    Promise.all([
+      cargarBase(), cargarSinMovimiento(dias), cargarBackups(),
+      api('/api/reportes/carga-equipo').then(setCarga).catch(() => {}),
+    ]).finally(() => setCargando(false))
   }, [])
 
   const maxJuzgado = Math.max(1, ...porJuzgado.map((x) => x.cantidad))
@@ -62,6 +88,70 @@ export default function Reportes() {
         <div>
           <div className="page-title">Reportes</div>
           <div className="page-sub">Estadísticas de la Defensoría</div>
+        </div>
+      </div>
+
+      {/* Reporte mensual (para elevar a la Defensoría General) */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Reporte mensual</span>
+          <div className="row" style={{ gap: 6 }}>
+            <select value={periodo.mes} onChange={(e) => setPeriodo((p) => ({ ...p, mes: Number(e.target.value) }))} style={{ padding: '5px 8px', borderRadius: 6, border: '1.5px solid var(--border)', fontFamily: 'inherit' }}>
+              {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={periodo.anio} onChange={(e) => setPeriodo((p) => ({ ...p, anio: Number(e.target.value) }))} style={{ padding: '5px 8px', borderRadius: 6, border: '1.5px solid var(--border)', fontFamily: 'inherit' }}>
+              {[0, 1, 2].map((d) => { const y = ahora.getFullYear() - d; return <option key={y} value={y}>{y}</option> })}
+            </select>
+            <button className="btn btn-teal btn-sm" onClick={descargarExcel}><Icono nombre="exportar" size={14} />Excel</button>
+          </div>
+        </div>
+        <div className="card-body">
+          {!mensual ? <div className="empty">Sin datos.</div> : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="dash-grid">
+              <div>
+                <div className="card-title" style={{ marginBottom: 8 }}>Intervenciones por tipo</div>
+                {mensual.intervenciones_por_tipo.length === 0 ? <div className="tl-meta">Sin intervenciones este mes.</div>
+                  : mensual.intervenciones_por_tipo.map((x) => <FilaDato key={x.tipo} k={x.tipo} v={x.cantidad} />)}
+                <div className="card-title" style={{ margin: '14px 0 8px' }}>Audiencias</div>
+                <FilaDato k="Total del mes" v={mensual.audiencias.total} />
+                {Object.entries(mensual.audiencias.por_modalidad).map(([k, v]) => <FilaDato key={k} k={k} v={v} />)}
+              </div>
+              <div>
+                <div className="card-title" style={{ marginBottom: 8 }}>Productividad</div>
+                {mensual.productividad.length === 0 ? <div className="tl-meta">Sin datos.</div>
+                  : mensual.productividad.map((x) => <FilaDato key={x.persona} k={x.persona} v={x.intervenciones} />)}
+                <div className="card-title" style={{ margin: '14px 0 8px' }}>Proyectos a la firma</div>
+                <FilaDato k="Enviados" v={mensual.proyectos.enviados} />
+                <FilaDato k="Dictámenes subidos" v={mensual.proyectos.subidos} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Carga del equipo */}
+      <div className="card">
+        <div className="card-header"><span className="card-title">Carga del equipo</span><span className="tl-meta">qué tiene cada uno y qué está demorado</span></div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {carga.length === 0 ? <div className="empty">Sin datos.</div> : (
+            <div className="table-scroll">
+              <table className="data">
+                <thead><tr><th>Persona</th><th>Rol</th><th>Recibidos a resolver</th><th>Propios pendientes</th><th>Demorados (+7 días)</th><th>Expedientes activos</th></tr></thead>
+                <tbody>
+                  {carga.map((f) => (
+                    <tr key={f.persona}>
+                      <td>{f.persona}</td>
+                      <td className="muted" style={{ textTransform: 'capitalize' }}>{f.rol}</td>
+                      <td className="mono">{f.recibidos_pendientes}</td>
+                      <td className="mono">{f.enviados_pendientes}</td>
+                      <td>{f.demorados > 0 ? <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>{f.demorados}</span> : <span className="dash">—</span>}</td>
+                      <td className="mono">{f.expedientes_activos ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,6 +250,15 @@ function BarraReporte({ etiqueta, valor, max, color = 'var(--teal)' }) {
       <div style={{ height: 8, background: '#eef0f4', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color }} />
       </div>
+    </div>
+  )
+}
+
+function FilaDato({ k, v }) {
+  return (
+    <div className="row" style={{ justifyContent: 'space-between', fontSize: 13.5, padding: '4px 0', borderBottom: '1px solid #f1eef0' }}>
+      <span style={{ textTransform: 'capitalize' }}>{k}</span>
+      <strong>{v}</strong>
     </div>
   )
 }
