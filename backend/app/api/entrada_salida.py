@@ -2,7 +2,7 @@
 Endpoints para Entrada/Salida (registro diario, reemplaza Excel).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from datetime import date
@@ -84,6 +84,52 @@ async def crear_entrada_salida(
     db.refresh(nueva_entrada)
 
     return nueva_entrada
+
+
+@router.post("/bulk")
+async def crear_bulk(
+    filas: list[dict] = Body(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Crea varias filas del listado de una sola vez (pegado desde Excel).
+    Cada fila acepta: fecha, juzgado, numero_expediente, autos, asignacion,
+    pase_firma, subido_lex, observaciones, urgente.
+    """
+    creados = 0
+    for f in filas:
+        autos = (f.get("autos") or "").strip()
+        numero = (f.get("numero_expediente") or "").replace("*", "").strip()
+        if not autos and not numero:
+            continue  # fila vacía
+        fecha = _a_fecha(f.get("fecha")) or date.today()
+        asignacion = (f.get("asignacion") or "").strip() or None
+
+        expediente_id = None
+        if numero:
+            exp = db.query(Expediente).filter(Expediente.numero == numero).first()
+            if not exp:
+                desp = db.query(Usuario).filter(Usuario.nombre == asignacion).first() if asignacion else None
+                exp = Expediente(
+                    numero=numero, juzgado=f.get("juzgado"), caratula=autos, estado="activo",
+                    despachante_id=desp.id if desp else None, fecha_entrada=fecha,
+                    conexos=[], observaciones=f.get("observaciones") or "",
+                )
+                db.add(exp)
+                db.flush()
+            expediente_id = exp.id
+
+        db.add(EntradaSalida(
+            fecha=fecha, juzgado=f.get("juzgado"), expediente_id=expediente_id, autos=autos,
+            asignacion=asignacion, pase_firma=_a_fecha(f.get("pase_firma")),
+            subido_lex=_a_fecha(f.get("subido_lex")), observaciones=f.get("observaciones"),
+            urgente=bool(f.get("urgente")),
+        ))
+        creados += 1
+
+    db.commit()
+    return {"creados": creados}
 
 
 @router.get("/", response_model=list[EntradaSalidaSchema])

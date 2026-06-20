@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import { isoLocal, diaLargo, fechaCorta, fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
 import ImportarPDF from '../components/ImportarPDF'
+import PegarExcel from '../components/PegarExcel'
 import TablaListado from '../components/TablaListado'
 import Icono from '../components/Icono'
 
@@ -31,6 +32,7 @@ export default function Listado() {
 
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarPDF, setMostrarPDF] = useState(false)
+  const [mostrarPegar, setMostrarPegar] = useState(false)
   const [mostrarPapelera, setMostrarPapelera] = useState(false)
   const [exportando, setExportando] = useState(false)
 
@@ -117,6 +119,7 @@ export default function Listado() {
           <button className="btn btn-ghost" onClick={exportar} disabled={exportando}>
             {exportando ? <span className="spin" /> : <><Icono nombre="exportar" size={15} /> Exportar</>}
           </button>
+          <button className="btn btn-ghost" onClick={() => setMostrarPegar(true)}><Icono nombre="importar" size={15} /> Pegar de Excel</button>
           <button className="btn btn-ghost" onClick={() => setMostrarPDF(true)}><Icono nombre="importar" size={15} /> Importar PDF</button>
           <button className="btn btn-teal" onClick={() => setMostrarForm(true)}><Icono nombre="agregar" size={16} /> Agregar</button>
         </div>
@@ -186,6 +189,10 @@ export default function Listado() {
       )}
       {mostrarPDF && (
         <ImportarPDF onClose={() => setMostrarPDF(false)} onImportado={() => { setMostrarPDF(false); cargar() }} />
+      )}
+      {mostrarPegar && (
+        <PegarExcel fechaDefault={diaISO} onClose={() => setMostrarPegar(false)}
+          onListo={(n) => { setMostrarPegar(false); cargar(); alert(`Se cargaron ${n} fila(s) al listado.`) }} />
       )}
       {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}
     </div>
