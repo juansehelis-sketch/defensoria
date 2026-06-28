@@ -1,8 +1,7 @@
 /**
  * Biblioteca de la Defensoría, compartida por todos y guardada en la base.
- * Tres bibliotecas, cada una con carpetas y, dentro, archivos con su información:
- *  - Modelos        → escritos con variables @ (por tipo de proceso). Se "arman"
- *                     sobre un expediente y las @ se rellenan solas.
+ * Tres bibliotecas, cada una con carpetas por temática y, dentro, archivos:
+ *  - Modelos        → dictámenes y escritos anteriores para reutilizar.
  *  - Jurisprudencia → fallos por temática.
  *  - Doctrina       → doctrina por temática.
  *
@@ -10,32 +9,31 @@
  * por cualquiera de esos datos (o por el nombre de la carpeta o el texto).
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { api, obtenerToken, API_BASE } from '../utils/api'
 import Modal from '../components/Modal'
 import PreviewArchivo from '../components/PreviewArchivo'
-import ArmarEscrito from '../components/ArmarEscrito'
 import Icono from '../components/Icono'
 import { fechaCorta } from '../utils/format'
 
 const CATEGORIAS = [
   {
     id: 'modelos', label: 'Modelos', icono: 'modelos',
-    sub: 'Escritos con variables @ que se rellenan solas, por tipo de proceso',
-    ayuda: 'Plantillas de escritos. Poné @ donde quieras un dato del expediente y el botón "Armar escrito" lo completa solo.',
-    divide: 'tipo de proceso', item: 'modelo', arroba: true,
+    sub: 'Dictámenes y escritos anteriores para reutilizar, por temática',
+    ayuda: 'Subí dictámenes o escritos que ya hiciste para usarlos de modelo. Después buscá por temática (ej: “alimentos atrasados”) y reutilizá lo que necesites.',
+    divide: 'temática', item: 'modelo',
   },
   {
     id: 'jurisprudencia', label: 'Jurisprudencia', icono: 'balanza',
     sub: 'Fallos ordenados por temática',
     ayuda: 'Fallos guardados por tema. Subí el archivo y agregale una descripción y etiquetas para encontrarlo después.',
-    divide: 'temática', item: 'fallo', arroba: false,
+    divide: 'temática', item: 'fallo',
   },
   {
     id: 'doctrina', label: 'Doctrina', icono: 'libro',
     sub: 'Doctrina ordenada por temática',
     ayuda: 'Artículos y doctrina por tema. Subí el archivo y agregale una descripción y etiquetas para buscarlo.',
-    divide: 'temática', item: 'texto', arroba: false,
+    divide: 'temática', item: 'documento',
   },
 ]
 
@@ -90,7 +88,6 @@ function Biblioteca({ conf, onVolver }) {
   const [cargando, setCargando] = useState(true)
   const [nuevaCarpeta, setNuevaCarpeta] = useState(false)
   const [nombreCarpeta, setNombreCarpeta] = useState('')
-  const [variables, setVariables] = useState([])
   const [q, setQ] = useState('')
   const [resultados, setResultados] = useState(null) // null = sin búsqueda activa
   const [buscando, setBuscando] = useState(false)
@@ -101,7 +98,6 @@ function Biblioteca({ conf, onVolver }) {
     catch (e) { console.error(e) } finally { setCargando(false) }
   }
   useEffect(() => { cargar() }, [conf.id])
-  useEffect(() => { if (conf.arroba) api('/api/modelos/variables').then(setVariables).catch(() => {}) }, [conf.arroba])
 
   async function ejecutarBusqueda() {
     const termino = q.trim()
@@ -154,7 +150,7 @@ function Biblioteca({ conf, onVolver }) {
           <Icono nombre="buscar" size={18} color="var(--muted)" />
         </span>
         <input value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder={`Buscar en ${conf.label} por nombre, descripción, etiquetas...`}
+          placeholder={`Buscar en ${conf.label} por temática, nombre, descripción...`}
           style={{ width: '100%', padding: '13px 40px 13px 44px', fontSize: 15, borderRadius: 10, border: '1px solid var(--border)' }} />
         {q && (
           <button onClick={() => setQ('')} title="Limpiar"
@@ -174,7 +170,7 @@ function Biblioteca({ conf, onVolver }) {
           <>
             <div className="tl-meta" style={{ marginBottom: 10 }}>{resultados.length} resultado{resultados.length !== 1 ? 's' : ''} para “{q.trim()}”</div>
             {resultados.map((p) => (
-              <ModeloItem key={p.id} plantilla={p} conf={conf} variables={variables} carpetaNombre={p.carpeta_nombre} onCambio={() => { cargar(); ejecutarBusqueda() }} />
+              <ModeloItem key={p.id} plantilla={p} conf={conf} carpetaNombre={p.carpeta_nombre} onCambio={() => { cargar(); ejecutarBusqueda() }} />
             ))}
           </>
         )
@@ -183,7 +179,7 @@ function Biblioteca({ conf, onVolver }) {
       ) : carpetas.length === 0 ? (
         <div className="card"><div className="empty">No hay carpetas en {conf.label} todavía.<br />Creá una por {conf.divide} con el botón “Nueva carpeta” y agregale archivos.</div></div>
       ) : (
-        carpetas.map((c) => <Carpeta key={c.id} carpeta={c} conf={conf} variables={variables} onCambio={cargar} onEliminar={() => eliminarCarpeta(c.id)} />)
+        carpetas.map((c) => <Carpeta key={c.id} carpeta={c} conf={conf} onCambio={cargar} onEliminar={() => eliminarCarpeta(c.id)} />)
       )}
 
       {nuevaCarpeta && (
@@ -192,47 +188,11 @@ function Biblioteca({ conf, onVolver }) {
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Nombre ({conf.divide})</label>
             <input value={nombreCarpeta} onChange={(e) => setNombreCarpeta(e.target.value)} autoFocus
-              placeholder={conf.divide === 'temática' ? 'Ej: Capacidad, Restitución, Alimentos...' : 'Ej: Sucesiones, Alimentos, Violencia familiar...'}
+              placeholder="Ej: Alimentos, Restitución, Capacidad, Violencia familiar..."
               onKeyDown={(e) => e.key === 'Enter' && crearCarpeta()} />
           </div>
         </Modal>
       )}
-    </div>
-  )
-}
-
-// ── Hook: insertar un token @ en el cursor del textarea ────────
-function useInsertar(contenido, setContenido) {
-  const ref = useRef(null)
-  function insertar(token) {
-    const ins = '@' + token
-    const ta = ref.current
-    if (!ta) { setContenido(contenido + ins); return }
-    const s = ta.selectionStart ?? contenido.length
-    const e = ta.selectionEnd ?? contenido.length
-    setContenido(contenido.slice(0, s) + ins + contenido.slice(e))
-    requestAnimationFrame(() => { ta.focus(); const pos = s + ins.length; ta.setSelectionRange(pos, pos) })
-  }
-  return [ref, insertar]
-}
-
-// ── Panel de ayuda de variables @ ─────────────────────────────
-function VariablesAyuda({ variables, onInsertar }) {
-  if (!variables?.length) return null
-  const grupos = [...new Set(variables.map((v) => v.grupo))]
-  return (
-    <div style={{ background: 'var(--teal-lt)', border: '1px solid var(--border)', borderRadius: 7, padding: '10px 12px', marginBottom: 12 }}>
-      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 7 }}>Tocá una variable para insertarla; se rellena sola con los datos del expediente:</div>
-      {grupos.map((g) => (
-        <div key={g} style={{ marginBottom: 6 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 4 }}>{g}</div>
-          <div className="row" style={{ gap: 5 }}>
-            {variables.filter((v) => v.grupo === g).map((v) => (
-              <button key={v.token} type="button" className="btn btn-ghost btn-sm" style={{ padding: '3px 8px', fontSize: 11.5 }} title={v.etiqueta} onClick={() => onInsertar(v.token)}>@{v.token}</button>
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }
@@ -253,7 +213,7 @@ function Etiquetas({ texto }) {
 }
 
 // ── Carpeta (acordeón) ─────────────────────────────────────────
-function Carpeta({ carpeta, conf, variables, onCambio, onEliminar }) {
+function Carpeta({ carpeta, conf, onCambio, onEliminar }) {
   const [abierta, setAbierta] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
 
@@ -270,11 +230,11 @@ function Carpeta({ carpeta, conf, variables, onCambio, onEliminar }) {
 
       {abierta && (
         <div className="card-body">
-          {mostrarForm && <FormModelo carpetaId={carpeta.id} conf={conf} variables={variables} onClose={() => setMostrarForm(false)} onGuardado={() => { setMostrarForm(false); onCambio() }} />}
+          {mostrarForm && <FormModelo carpetaId={carpeta.id} conf={conf} onClose={() => setMostrarForm(false)} onGuardado={() => { setMostrarForm(false); onCambio() }} />}
           {carpeta.plantillas.length === 0 ? (
             <div className="empty" style={{ padding: 24 }}>Esta carpeta está vacía. Usá “Agregar archivo”.</div>
           ) : (
-            carpeta.plantillas.map((p) => <ModeloItem key={p.id} plantilla={p} conf={conf} variables={variables} onCambio={onCambio} />)
+            carpeta.plantillas.map((p) => <ModeloItem key={p.id} plantilla={p} conf={conf} onCambio={onCambio} />)
           )}
         </div>
       )}
@@ -283,10 +243,9 @@ function Carpeta({ carpeta, conf, variables, onCambio, onEliminar }) {
 }
 
 // ── Item ───────────────────────────────────────────────────────
-function ModeloItem({ plantilla, conf, variables, onCambio, carpetaNombre }) {
+function ModeloItem({ plantilla, conf, onCambio, carpetaNombre }) {
   const [verContenido, setVerContenido] = useState(false)
   const [editar, setEditar] = useState(false)
-  const [armar, setArmar] = useState(false)
 
   async function eliminar() {
     if (!confirm(`¿Eliminar “${plantilla.nombre}”?`)) return
@@ -309,7 +268,6 @@ function ModeloItem({ plantilla, conf, variables, onCambio, carpetaNombre }) {
           <div className="tl-meta" style={{ marginTop: 6 }}>Agregado el {fechaCorta(plantilla.fecha_creacion)}</div>
         </div>
         <div className="row" style={{ gap: 6, flexShrink: 0 }}>
-          {conf.arroba && (plantilla.contenido || /\.docx$/i.test(plantilla.archivo_url || '')) && <button className="btn btn-teal btn-sm" onClick={() => setArmar(true)}><Icono nombre="firma" size={14} />Armar escrito</button>}
           {plantilla.contenido && <button className="btn btn-ghost btn-sm" onClick={() => { setVerContenido((v) => !v); setEditar(false) }}>{verContenido ? 'Ocultar' : 'Ver texto'}</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => { setEditar((v) => !v); setVerContenido(false) }}>Editar</button>
           <button className="btn btn-ghost btn-sm" onClick={eliminar} title="Eliminar"><Icono nombre="borrar" size={14} color="var(--red)" /></button>
@@ -317,7 +275,7 @@ function ModeloItem({ plantilla, conf, variables, onCambio, carpetaNombre }) {
       </div>
 
       {editar && (
-        <EditarModelo plantilla={plantilla} conf={conf} variables={conf.arroba ? variables : []} onClose={() => setEditar(false)} onGuardado={() => { setEditar(false); onCambio() }} />
+        <EditarModelo plantilla={plantilla} onClose={() => setEditar(false)} onGuardado={() => { setEditar(false); onCambio() }} />
       )}
 
       {verContenido && plantilla.contenido && !editar && (
@@ -329,14 +287,12 @@ function ModeloItem({ plantilla, conf, variables, onCambio, carpetaNombre }) {
           <PreviewArchivo archivo={{ nombre: plantilla.nombre, url: plantilla.archivo_url }} alturaPdf={420} abiertoInicial={false} />
         </div>
       )}
-
-      {armar && <ArmarEscrito plantilla={plantilla} onClose={() => setArmar(false)} />}
     </div>
   )
 }
 
 // ── Form para agregar ──────────────────────────────────────────
-function FormModelo({ carpetaId, conf, variables, onClose, onGuardado }) {
+function FormModelo({ carpetaId, conf, onClose, onGuardado }) {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [etiquetas, setEtiquetas] = useState('')
@@ -344,7 +300,6 @@ function FormModelo({ carpetaId, conf, variables, onClose, onGuardado }) {
   const [archivo, setArchivo] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
-  const [taRef, insertar] = useInsertar(contenido, setContenido)
 
   async function guardar() {
     setError('')
@@ -371,20 +326,19 @@ function FormModelo({ carpetaId, conf, variables, onClose, onGuardado }) {
     <div style={{ background: '#f7f8fc', border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
       {error && <div className="alert alert-red">{error}</div>}
       <div className="field"><label>Nombre del {conf.item} *</label>
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={conf.arroba ? 'Ej: Demanda de alimentos - vista inicial' : 'Ej: CSJN "García" 2021'} />
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={conf.id === 'jurisprudencia' ? 'Ej: CSJN "García" 2021' : 'Ej: Dictamen alimentos atrasados'} />
       </div>
       <div className="field"><label>Descripción (para encontrarlo después)</label>
         <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} style={{ minHeight: 60 }}
-          placeholder="Ej: de qué trata, tribunal, fecha, partes, para qué sirve..." />
+          placeholder="Ej: de qué trata, partes, fecha, para qué sirve..." />
       </div>
       <div className="field"><label>Etiquetas (separadas por coma)</label>
-        <input value={etiquetas} onChange={(e) => setEtiquetas(e.target.value)} placeholder="Ej: alimentos, cuota, urgente" />
+        <input value={etiquetas} onChange={(e) => setEtiquetas(e.target.value)} placeholder="Ej: alimentos, atrasados, cuota" />
       </div>
-      {conf.arroba && <VariablesAyuda variables={variables} onInsertar={insertar} />}
       <div className="field">
-        <label>Texto {conf.arroba ? '(poné @ donde quieras un dato del expediente)' : '(opcional si subís un archivo)'}</label>
-        <textarea ref={taRef} value={contenido} onChange={(e) => setContenido(e.target.value)} style={{ minHeight: 150 }}
-          placeholder={conf.arroba ? 'Ej: En @ciudad, @fecha. Autos: "@caratula" (Expte. @numero)...' : 'Pegá o escribí el contenido.'} />
+        <label>Texto (opcional si subís un archivo)</label>
+        <textarea value={contenido} onChange={(e) => setContenido(e.target.value)} style={{ minHeight: 150 }}
+          placeholder="Pegá o escribí el contenido." />
       </div>
       <div className="field"><label>O adjuntar un archivo (Word/PDF)</label>
         <input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setArchivo(e.target.files[0])} />
@@ -398,13 +352,12 @@ function FormModelo({ carpetaId, conf, variables, onClose, onGuardado }) {
 }
 
 // ── Editar un archivo existente (nombre, descripción, etiquetas, texto) ──
-function EditarModelo({ plantilla, conf, variables, onClose, onGuardado }) {
+function EditarModelo({ plantilla, onClose, onGuardado }) {
   const [nombre, setNombre] = useState(plantilla.nombre)
   const [descripcion, setDescripcion] = useState(plantilla.descripcion || '')
   const [etiquetas, setEtiquetas] = useState(plantilla.etiquetas || '')
   const [contenido, setContenido] = useState(plantilla.contenido || '')
   const [guardando, setGuardando] = useState(false)
-  const [taRef, insertar] = useInsertar(contenido, setContenido)
   const tieneTexto = plantilla.contenido != null
 
   async function guardar() {
@@ -424,15 +377,12 @@ function EditarModelo({ plantilla, conf, variables, onClose, onGuardado }) {
         <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} style={{ minHeight: 60 }} placeholder="De qué trata, para qué sirve..." />
       </div>
       <div className="field"><label>Etiquetas (separadas por coma)</label>
-        <input value={etiquetas} onChange={(e) => setEtiquetas(e.target.value)} placeholder="Ej: alimentos, cuota, urgente" />
+        <input value={etiquetas} onChange={(e) => setEtiquetas(e.target.value)} placeholder="Ej: alimentos, atrasados, cuota" />
       </div>
       {tieneTexto && (
-        <>
-          {variables.length > 0 && <VariablesAyuda variables={variables} onInsertar={insertar} />}
-          <div className="field" style={{ marginBottom: 8 }}><label>Texto</label>
-            <textarea ref={taRef} value={contenido} onChange={(e) => setContenido(e.target.value)} style={{ minHeight: 170 }} />
-          </div>
-        </>
+        <div className="field" style={{ marginBottom: 8 }}><label>Texto</label>
+          <textarea value={contenido} onChange={(e) => setContenido(e.target.value)} style={{ minHeight: 170 }} />
+        </div>
       )}
       <div className="row">
         <button className="btn btn-teal btn-sm" onClick={guardar} disabled={guardando}>{guardando ? <span className="spin" /> : 'Guardar cambios'}</button>
