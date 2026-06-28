@@ -239,6 +239,8 @@ class Plantilla(Base):
     nombre = Column(String)
     contenido = Column(Text, nullable=True)   # texto del modelo (con variables tipo {{numero}})
     archivo_url = Column(String, nullable=True)
+    descripcion = Column(Text, nullable=True)   # info sobre el archivo (para buscar)
+    etiquetas = Column(String, nullable=True)   # palabras clave separadas por coma (para buscar)
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     carpeta = relationship("CarpetaModelo", back_populates="plantillas")

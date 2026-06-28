@@ -6,6 +6,7 @@ Más adelante se conectarán con formularios que autocompletan los datos del exp
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pathlib import Path
 import io
 import uuid
@@ -54,6 +55,43 @@ async def crear_carpeta(
     return carpeta
 
 
+# ── Buscador (nombre + descripción + etiquetas + texto) ────────
+
+@router.get("/buscar")
+async def buscar(categoria: str, q: str = "", db: Session = Depends(get_db)):
+    """
+    Busca elementos dentro de una biblioteca por nombre, descripción,
+    etiquetas, texto del modelo o nombre de la carpeta. Devuelve cada
+    coincidencia con el nombre de la carpeta a la que pertenece.
+    """
+    termino = (q or "").strip().lower()
+    if not termino:
+        return []
+
+    like = f"%{termino}%"
+    filas = (
+        db.query(Plantilla, CarpetaModelo.nombre)
+        .join(CarpetaModelo, Plantilla.carpeta_id == CarpetaModelo.id)
+        .filter(CarpetaModelo.categoria == categoria)
+        .filter(
+            func.lower(Plantilla.nombre).like(like)
+            | func.lower(func.coalesce(Plantilla.descripcion, "")).like(like)
+            | func.lower(func.coalesce(Plantilla.etiquetas, "")).like(like)
+            | func.lower(func.coalesce(Plantilla.contenido, "")).like(like)
+            | func.lower(CarpetaModelo.nombre).like(like)
+        )
+        .order_by(Plantilla.nombre.asc())
+        .all()
+    )
+    return [
+        {
+            **PlantillaSchema.model_validate(p).model_dump(),
+            "carpeta_nombre": carpeta_nombre,
+        }
+        for p, carpeta_nombre in filas
+    ]
+
+
 # ── Variables @ disponibles (para la ayuda del editor) ─────────
 
 @router.get("/variables")
@@ -86,6 +124,8 @@ async def crear_plantilla(
     carpeta_id: int = Form(...),
     nombre: str = Form(...),
     contenido: str = Form(""),
+    descripcion: str = Form(""),
+    etiquetas: str = Form(""),
     archivo: UploadFile = File(None),
     db: Session = Depends(get_db),
     _u: Usuario = Depends(obtener_usuario_actual),
@@ -107,6 +147,8 @@ async def crear_plantilla(
         carpeta_id=carpeta_id,
         nombre=nombre,
         contenido=contenido or None,
+        descripcion=(descripcion or "").strip() or None,
+        etiquetas=(etiquetas or "").strip() or None,
         archivo_url=archivo_url,
     )
     db.add(plantilla)
@@ -144,6 +186,10 @@ async def editar_plantilla(
         plantilla.nombre = datos["nombre"].strip()
     if "contenido" in datos:
         plantilla.contenido = (datos["contenido"] or None)
+    if "descripcion" in datos:
+        plantilla.descripcion = (datos["descripcion"] or "").strip() or None
+    if "etiquetas" in datos:
+        plantilla.etiquetas = (datos["etiquetas"] or "").strip() or None
     db.commit()
     db.refresh(plantilla)
     return plantilla

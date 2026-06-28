@@ -27,6 +27,10 @@ const PATHS = {
   candado: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   virtual: 'M2 4h20v12H2zM8 20h8M12 16v4',
   presencial: 'M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5',
+  buscar: 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM21 21l-4.35-4.35',
+  libro: 'M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20',
+  balanza: 'M12 3v18M7 21h10M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1zM2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1zM3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2',
+  etiqueta: 'M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4zM7.5 7.5h.01',
 }
 
 export default function Icono({ nombre, size = 18, color = 'currentColor', strokeWidth = 1.9, style }) {

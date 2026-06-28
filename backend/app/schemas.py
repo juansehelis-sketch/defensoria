@@ -266,6 +266,8 @@ class Plantilla(BaseModel):
     nombre: str
     contenido: Optional[str] = None
     archivo_url: Optional[str] = None
+    descripcion: Optional[str] = None
+    etiquetas: Optional[str] = None
     fecha_creacion: datetime
 
     class Config:
