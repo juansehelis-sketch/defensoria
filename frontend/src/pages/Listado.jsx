@@ -22,7 +22,15 @@ export default function Listado() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
 
-  const [dia, setDia] = useState(new Date())
+  const [dia, setDia] = useState(() => {
+    // Arranca en hoy; si cae sábado o domingo, salta al día hábil anterior.
+    const d = new Date()
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1)
+    return d
+  })
+  const [vista, setVista] = useState('dia')               // 'dia' | 'general'
+  const [ocultos, setOcultos] = useState(() => new Set()) // días ocultos a mano (ISO)
+  const [mostrarOcultos, setMostrarOcultos] = useState(false)
   const [registros, setRegistros] = useState([])
   const [cargando, setCargando] = useState(true)
   const [despachantes, setDespachantes] = useState([])
@@ -36,10 +44,24 @@ export default function Listado() {
   const [mostrarPapelera, setMostrarPapelera] = useState(false)
   const [exportando, setExportando] = useState(false)
 
-  // Cualquier filtro activo (búsqueda o asignación) muestra TODAS las fechas;
-  // sin filtros, se ve día por día.
-  const modoGlobal = busqueda.trim().length > 0 || !!fAsignacion
+  // La vista "general", una búsqueda o un filtro de asignación muestran TODAS
+  // las fechas; si no, se ve día por día.
+  const verTodas = vista === 'general' || busqueda.trim().length > 0 || !!fAsignacion
   const diaISO = isoLocal(dia)
+
+  // Un día es hábil si no es sábado/domingo ni está oculto a mano.
+  const esHabil = (d) => d.getDay() !== 0 && d.getDay() !== 6 && !ocultos.has(isoLocal(d))
+  function diaHabilDesde(base, dir) {
+    const d = new Date(base); let i = 0
+    while (!esHabil(d) && i < 400) { d.setDate(d.getDate() + dir); i++ }
+    return d
+  }
+
+  // En la vista general se ocultan los registros que caen en días no hábiles.
+  const registrosVista = useMemo(() => {
+    if (!verTodas) return registros
+    return registros.filter((r) => r.fecha && esHabil(new Date(r.fecha + 'T00:00:00')))
+  }, [registros, verTodas, ocultos])
 
   async function cargar() {
     setCargando(true)
@@ -47,7 +69,7 @@ export default function Listado() {
       const params = {}
       if (fAsignacion) params.asignacion = fAsignacion
       if (busqueda.trim()) params.busqueda = busqueda
-      if (modoGlobal) {
+      if (verTodas) {
         params.limit = 1000
       } else {
         params.fecha_inicio = diaISO
@@ -63,18 +85,41 @@ export default function Listado() {
     }
   }
 
+  async function cargarOcultos() {
+    try {
+      const items = await api('/api/reportes/feriados')
+      const s = new Set(items.map((f) => f.fecha))
+      setOcultos(s)
+      return s
+    } catch { return ocultos }
+  }
+
   useEffect(() => { api('/api/usuarios/').then(setDespachantes).catch(() => {}) }, [])
+  useEffect(() => { cargarOcultos() }, [])
   useEffect(() => {
-    const t = setTimeout(cargar, modoGlobal ? 250 : 0)
+    const t = setTimeout(cargar, verTodas ? 250 : 0)
     return () => clearTimeout(t)
-  }, [diaISO, busqueda, fAsignacion])
+  }, [diaISO, busqueda, fAsignacion, vista])
 
   function cambiarDia(delta) {
-    const d = new Date(dia)
-    d.setDate(d.getDate() + delta)
+    const d = new Date(dia); let i = 0
+    do { d.setDate(d.getDate() + delta); i++ } while (!esHabil(d) && i < 400)
     setDia(d)
   }
-  function irHoy() { setDia(new Date()) }
+  function irHoy() { setDia(diaHabilDesde(new Date(), -1)) }
+
+  async function ocultarDia() {
+    const motivo = window.prompt('Ocultar este día del listado (feriado, asueto, etc.).\nMotivo (opcional):', '')
+    if (motivo === null) return // canceló
+    try {
+      await api('/api/reportes/feriados', { method: 'POST', body: { fecha: diaISO, motivo } })
+      const s = await cargarOcultos()
+      // saltar al próximo día hábil con la lista ya actualizada
+      const d = new Date(dia); let i = 0
+      do { d.setDate(d.getDate() + 1); i++ } while ((d.getDay() === 0 || d.getDay() === 6 || s.has(isoLocal(d))) && i < 400)
+      setDia(d)
+    } catch (e) { alert('No se pudo ocultar el día: ' + e.message) }
+  }
 
   function filtrarMios() {
     setFAsignacion(fAsignacion === usuario?.nombre ? '' : usuario?.nombre || '')
@@ -84,7 +129,7 @@ export default function Listado() {
     setExportando(true)
     try {
       const params = new URLSearchParams()
-      if (!modoGlobal) { params.append('fecha_inicio', diaISO); params.append('fecha_fin', diaISO) }
+      if (!verTodas) { params.append('fecha_inicio', diaISO); params.append('fecha_fin', diaISO) }
       const resp = await fetch(`${API_BASE}/api/entrada-salida/export/excel?${params}`, {
         method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` },
       })
@@ -111,7 +156,7 @@ export default function Listado() {
         <div>
           <div className="page-title">Listado de expedientes</div>
           <div className="page-sub">
-            {modoGlobal ? `${registros.length} resultado(s) · todas las fechas` : `${registros.length} expediente(s) del día`}
+            {verTodas ? `${registrosVista.length} resultado(s) · todas las fechas` : `${registrosVista.length} expediente(s) del día`}
           </div>
         </div>
         <div className="row">
@@ -125,8 +170,20 @@ export default function Listado() {
         </div>
       </div>
 
+      {/* Selector de vista + acceso a días ocultos */}
+      <div className="row" style={{ gap: 8, marginBottom: 14, alignItems: 'center' }}>
+        <div className="row" style={{ gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <button className={'btn btn-sm ' + (vista === 'dia' ? 'btn-navy' : 'btn-ghost')} style={{ borderRadius: 0 }} onClick={() => setVista('dia')}>Por día</button>
+          <button className={'btn btn-sm ' + (vista === 'general' ? 'btn-navy' : 'btn-ghost')} style={{ borderRadius: 0 }} onClick={() => setVista('general')}>Todos los días</button>
+        </div>
+        {(busqueda.trim() || fAsignacion) ? <span className="tl-meta">la búsqueda muestra todas las fechas</span> : null}
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', color: 'var(--muted)' }} onClick={() => setMostrarOcultos(true)}>
+          <Icono nombre="reloj" size={14} /> Días ocultos{ocultos.size ? ` (${ocultos.size})` : ''}
+        </button>
+      </div>
+
       {/* Navegador de día */}
-      {!modoGlobal && (
+      {!verTodas && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="card-body" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => cambiarDia(-1)}>← Día anterior</button>
@@ -136,8 +193,10 @@ export default function Listado() {
             </div>
             <button className="btn btn-ghost btn-sm" onClick={() => cambiarDia(1)}>Día siguiente →</button>
             <span style={{ width: 1, height: 24, background: 'var(--border)' }} />
-            <input type="date" value={diaISO} onChange={(e) => e.target.value && setDia(new Date(e.target.value + 'T00:00:00'))} style={{ padding: '6px 9px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }} />
+            <input type="date" value={diaISO} onChange={(e) => { if (e.target.value) { const p = new Date(e.target.value + 'T00:00:00'); setDia(esHabil(p) ? p : diaHabilDesde(p, -1)) } }} style={{ padding: '6px 9px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }} />
             {!esHoy && <button className="btn btn-ghost btn-sm" onClick={irHoy}>Ir a hoy</button>}
+            <span style={{ width: 1, height: 24, background: 'var(--border)' }} />
+            <button className="btn btn-ghost btn-sm" onClick={ocultarDia} style={{ color: 'var(--muted)', fontSize: 12 }} title="Ocultar este día (feriado/asueto)">Ocultar este día</button>
           </div>
         </div>
       )}
@@ -165,19 +224,19 @@ export default function Listado() {
       <div className="row" style={{ gap: 16, marginBottom: 8, fontSize: 12, color: 'var(--muted)' }}>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef3c7', border: '1px solid #e6d28a' }} /> Enviado a la firma</span>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#dcfce7', border: '1px solid #a7e3bf' }} /> Subido / vista cancelada</span>
-        <span style={{ marginLeft: 'auto' }}>Click para editar · Tab/Enter para moverte (como en Excel) · la flecha abre el expediente.</span>
+        <span style={{ marginLeft: 'auto' }}>Click para editar · Tab/Enter para moverte · la flecha abre el expediente.</span>
       </div>
 
       <div className="card">
         {cargando ? (
           <div className="loading-center"><span className="spin" /></div>
-        ) : registros.length === 0 ? (
-          <div className="empty">{modoGlobal ? 'Sin resultados para esa búsqueda.' : 'No hay expedientes cargados este día.'}</div>
+        ) : registrosVista.length === 0 ? (
+          <div className="empty">{verTodas ? 'Sin resultados.' : 'No hay expedientes cargados este día.'}</div>
         ) : (
           <TablaListado
-            registros={registros}
+            registros={registrosVista}
             despachantes={despachantes}
-            mostrarFecha={modoGlobal}
+            mostrarFecha={verTodas}
             onCambio={cargar}
             onAbrir={(eid) => navigate(`/expedientes/${eid}`)}
           />
@@ -195,7 +254,55 @@ export default function Listado() {
           onListo={(n) => { setMostrarPegar(false); cargar(); alert(`Se cargaron ${n} fila(s) al listado.`) }} />
       )}
       {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}
+      {mostrarOcultos && <DiasOcultos onClose={() => setMostrarOcultos(false)} onCambio={cargarOcultos} />}
     </div>
+  )
+}
+
+// ── Días ocultos del listado (feriados/asuetos marcados a mano) ──
+function DiasOcultos({ onClose, onCambio }) {
+  const [items, setItems] = useState([])
+  const [cargando, setCargando] = useState(true)
+
+  async function cargar() {
+    setCargando(true)
+    try { setItems(await api('/api/reportes/feriados')) } catch { /* ignorar */ } finally { setCargando(false) }
+  }
+  useEffect(() => { cargar() }, [])
+
+  async function restaurar(id) {
+    await api(`/api/reportes/feriados/${id}`, { method: 'DELETE' })
+    await cargar()
+    onCambio && onCambio()
+  }
+
+  return (
+    <Modal titulo="Días ocultos del listado" ancho={560} onClose={onClose}
+      footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}>
+      <p className="tl-meta" style={{ marginBottom: 10 }}>
+        Los sábados y domingos se ocultan solos. Acá quedan los días hábiles que ocultaste a mano (feriados, asuetos). Restauralos cuando quieras.
+      </p>
+      {cargando ? (
+        <div className="loading-center"><span className="spin" /></div>
+      ) : items.length === 0 ? (
+        <div className="empty">No hay días ocultos a mano.</div>
+      ) : (
+        <table className="data">
+          <thead><tr><th>Fecha</th><th>Motivo</th><th></th></tr></thead>
+          <tbody>
+            {items.map((f) => (
+              <tr key={f.id} style={{ cursor: 'default' }}>
+                <td className="mono">{fechaCorta(f.fecha)}</td>
+                <td>{f.motivo || '—'}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => restaurar(f.id)}>Restaurar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Modal>
   )
 }
 

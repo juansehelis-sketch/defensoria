@@ -141,6 +141,41 @@ async def auditoria(limit: int = 60, db: Session = Depends(get_db), _u: Usuario 
     } for a in items]
 
 
+# ── Días ocultos del listado (feriados / asuetos marcados a mano) ──
+# Los fines de semana se ocultan solos en el frontend; acá se guardan los
+# días hábiles que la oficina decide ocultar (feriados, asuetos, etc.).
+
+@router.get("/feriados")
+async def listar_feriados(db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    from app.models import DiaNoHabil
+    items = db.query(DiaNoHabil).order_by(DiaNoHabil.fecha.asc()).all()
+    return [{"id": f.id, "fecha": f.fecha, "motivo": f.motivo} for f in items]
+
+
+@router.post("/feriados")
+async def agregar_feriado(datos: dict = Body(...), db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    from app.models import DiaNoHabil
+    from datetime import date as _date
+    try:
+        fecha = _date.fromisoformat((datos.get("fecha") or "").strip())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Fecha inválida")
+    if not db.query(DiaNoHabil).filter(DiaNoHabil.fecha == fecha).first():
+        db.add(DiaNoHabil(fecha=fecha, motivo=(datos.get("motivo") or "").strip() or None))
+        db.commit()
+    return {"ok": True}
+
+
+@router.delete("/feriados/{feriado_id}")
+async def quitar_feriado(feriado_id: int, db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    from app.models import DiaNoHabil
+    f = db.query(DiaNoHabil).filter(DiaNoHabil.id == feriado_id).first()
+    if f:
+        db.delete(f)
+        db.commit()
+    return {"ok": True}
+
+
 # ── Reporte mensual (para elevar a la Defensoría General) ──────
 
 def _rango_mes(anio: int, mes: int):

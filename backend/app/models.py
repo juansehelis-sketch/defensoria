@@ -298,3 +298,12 @@ class Auditoria(Base):
     entidad = Column(String)       # listado / expediente / legajo / proyecto / modelo
     detalle = Column(Text, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.now, index=True)
+
+
+class DiaNoHabil(Base):
+    """Feriados / días no hábiles (además de fines de semana y feria judicial)."""
+    __tablename__ = "dias_no_habiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, unique=True, index=True)
+    motivo = Column(String, nullable=True)
