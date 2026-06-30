@@ -29,6 +29,7 @@ export default function Listado() {
     return d
   })
   const [vista, setVista] = useState('dia')               // 'dia' | 'general'
+  const [mes, setMes] = useState('')                      // 'YYYY-MM' opcional en vista general
   const [ocultos, setOcultos] = useState(() => new Set()) // días ocultos a mano (ISO)
   const [mostrarOcultos, setMostrarOcultos] = useState(false)
   const [registros, setRegistros] = useState([])
@@ -70,7 +71,16 @@ export default function Listado() {
       if (fAsignacion) params.asignacion = fAsignacion
       if (busqueda.trim()) params.busqueda = busqueda
       if (verTodas) {
-        params.limit = 1000
+        // En la vista general, si se eligió un mes se trae ese mes completo;
+        // si no, los 1000 movimientos más recientes.
+        if (vista === 'general' && mes && !busqueda.trim()) {
+          const [y, m] = mes.split('-').map(Number)
+          params.fecha_inicio = isoLocal(new Date(y, m - 1, 1))
+          params.fecha_fin = isoLocal(new Date(y, m, 0))
+          params.limit = 3000
+        } else {
+          params.limit = 1000
+        }
       } else {
         params.fecha_inicio = diaISO
         params.fecha_fin = diaISO
@@ -99,7 +109,13 @@ export default function Listado() {
   useEffect(() => {
     const t = setTimeout(cargar, verTodas ? 250 : 0)
     return () => clearTimeout(t)
-  }, [diaISO, busqueda, fAsignacion, vista])
+  }, [diaISO, busqueda, fAsignacion, vista, mes])
+
+  function cambiarMes(delta) {
+    const base = mes ? new Date(mes + '-01T00:00:00') : new Date()
+    base.setMonth(base.getMonth() + delta)
+    setMes(`${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   function cambiarDia(delta) {
     const d = new Date(dia); let i = 0
@@ -156,7 +172,11 @@ export default function Listado() {
         <div>
           <div className="page-title">Listado de expedientes</div>
           <div className="page-sub">
-            {verTodas ? `${registrosVista.length} resultado(s) · todas las fechas` : `${registrosVista.length} expediente(s) del día`}
+            {!verTodas
+              ? `${registrosVista.length} expediente(s) del día`
+              : (vista === 'general' && mes && !busqueda.trim())
+                ? `${registrosVista.length} expediente(s) · ${mes}`
+                : `${registrosVista.length} resultado(s) · ${(busqueda.trim() || fAsignacion) ? 'todas las fechas' : 'recientes'}`}
           </div>
         </div>
         <div className="row">
@@ -176,6 +196,17 @@ export default function Listado() {
           <button className={'btn btn-sm ' + (vista === 'dia' ? 'btn-navy' : 'btn-ghost')} style={{ borderRadius: 0 }} onClick={() => setVista('dia')}>Por día</button>
           <button className={'btn btn-sm ' + (vista === 'general' ? 'btn-navy' : 'btn-ghost')} style={{ borderRadius: 0 }} onClick={() => setVista('general')}>Todos los días</button>
         </div>
+        {vista === 'general' && !busqueda.trim() && (
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => cambiarMes(-1)} title="Mes anterior">←</button>
+            <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
+              style={{ padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }} />
+            <button className="btn btn-ghost btn-sm" onClick={() => cambiarMes(1)} title="Mes siguiente">→</button>
+            {mes
+              ? <button className="btn btn-ghost btn-sm" onClick={() => setMes('')}>Ver recientes</button>
+              : <span className="tl-meta">recientes (elegí un mes para ver todo)</span>}
+          </div>
+        )}
         {(busqueda.trim() || fAsignacion) ? <span className="tl-meta">la búsqueda muestra todas las fechas</span> : null}
         <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', color: 'var(--muted)' }} onClick={() => setMostrarOcultos(true)}>
           <Icono nombre="reloj" size={14} /> Días ocultos{ocultos.size ? ` (${ocultos.size})` : ''}
