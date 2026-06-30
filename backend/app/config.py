@@ -4,11 +4,15 @@ Traslado de la lógica del HTML al backend.
 """
 
 from pydantic_settings import BaseSettings
+from pathlib import Path
 import re
+import secrets
+
+_DEFAULT_SECRET = "tu-llave-secreta-aqui"
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./defensoría.db"
-    SECRET_KEY: str = "tu-llave-secreta-aqui"
+    SECRET_KEY: str = _DEFAULT_SECRET
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     API_HOST: str = "127.0.0.1"
@@ -22,6 +26,32 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 settings = Settings()
+
+
+def _resolver_secret_key(valor: str) -> str:
+    """
+    En producción la SECRET_KEY se toma de la variable de entorno (Render).
+    Si no se configuró (o quedó la de ejemplo), se genera una clave fuerte una
+    sola vez y se guarda en backend/.secret_key (gitignored) para que sea
+    estable entre reinicios. Así nunca se firma con la llave débil de ejemplo.
+    """
+    if valor and valor != _DEFAULT_SECRET:
+        return valor
+    ruta = Path(__file__).resolve().parent.parent / ".secret_key"
+    try:
+        if ruta.exists():
+            guardada = ruta.read_text(encoding="utf-8").strip()
+            if guardada:
+                return guardada
+        nueva = secrets.token_urlsafe(48)
+        ruta.write_text(nueva, encoding="utf-8")
+        return nueva
+    except Exception:
+        # Último recurso: clave aleatoria en memoria (se renueva por reinicio).
+        return secrets.token_urlsafe(48)
+
+
+settings.SECRET_KEY = _resolver_secret_key(settings.SECRET_KEY)
 
 
 def es_violencia_familiar(caratula: str) -> bool:

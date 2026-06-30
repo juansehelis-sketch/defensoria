@@ -12,6 +12,8 @@ backend/backups/
 # Variables de entorno (clave secreta del sistema)
 .env
 backend/.env
+# Clave secreta generada automáticamente (no debe ir al repo)
+backend/.secret_key
 
 # ─────────────────────────────────────────────────────────────
 # Dependencias y entornos (se reinstalan, no van al repo)

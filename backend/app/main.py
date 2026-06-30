@@ -2,12 +2,13 @@
 Aplicación principal FastAPI.
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from app.database import init_db
 from app.config import settings
+from app.utils.deps import obtener_usuario_actual
 from app.api import (
     usuarios,
     expedientes,
@@ -66,18 +67,23 @@ async def servir_adjunto(nombre: str):
     media = _mime.guess_type(nombre)[0] or "application/octet-stream"
     return _Response(content=datos, media_type=media)
 
-# Incluir routers
+# Incluir routers.
+# Los routers de datos exigen login a nivel de router (así ningún GET queda
+# abierto aunque el endpoint no lo declare). El router de usuarios va sin
+# protección global porque incluye el /login público (cada endpoint protege lo
+# suyo internamente).
+_auth = [Depends(obtener_usuario_actual)]
 app.include_router(usuarios.router)
-app.include_router(expedientes.router)
-app.include_router(entrada_salida.router)
-app.include_router(historial.router)
-app.include_router(audiencias.router)
-app.include_router(panel.router)
-app.include_router(reportes.router)
-app.include_router(proyectos.router)
-app.include_router(modelos.router)
-app.include_router(legajos.router)
-app.include_router(tareas.router)
+app.include_router(expedientes.router, dependencies=_auth)
+app.include_router(entrada_salida.router, dependencies=_auth)
+app.include_router(historial.router, dependencies=_auth)
+app.include_router(audiencias.router, dependencies=_auth)
+app.include_router(panel.router, dependencies=_auth)
+app.include_router(reportes.router, dependencies=_auth)
+app.include_router(proyectos.router, dependencies=_auth)
+app.include_router(modelos.router, dependencies=_auth)
+app.include_router(legajos.router, dependencies=_auth)
+app.include_router(tareas.router, dependencies=_auth)
 
 # Inicializar BD al startup
 @app.on_event("startup")
