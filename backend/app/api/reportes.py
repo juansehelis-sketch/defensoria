@@ -92,7 +92,7 @@ async def intervenciones_por_despachante(
 
 # ── Copias de seguridad de la base local ───────────────────────
 from app.services import backup as backup_svc
-from app.utils.deps import obtener_usuario_actual
+from app.utils.deps import obtener_usuario_actual, requerir_rol
 
 
 @router.get("/backups")
@@ -174,6 +174,22 @@ async def quitar_feriado(feriado_id: int, db: Session = Depends(get_db), _u: Usu
         db.delete(f)
         db.commit()
     return {"ok": True}
+
+
+# ── Resumen diario de pendientes por mail ──────────────────────
+
+@router.get("/mail-estado")
+async def mail_estado(_u: Usuario = Depends(obtener_usuario_actual)):
+    """Indica si el correo está configurado (para mostrarlo en la app)."""
+    from app.services import mail
+    return {"configurado": mail.mail_configurado()}
+
+
+@router.post("/resumen-diario")
+async def enviar_resumen_diario(_a: Usuario = Depends(requerir_rol("admin", "defensora")), db: Session = Depends(get_db)):
+    """Envía ahora el resumen de pendientes a cada integrante (con email real)."""
+    from app.services import mail
+    return mail.enviar_resumen_diario(db)
 
 
 # ── Reporte mensual (para elevar a la Defensoría General) ──────

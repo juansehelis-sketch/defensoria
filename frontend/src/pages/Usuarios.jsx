@@ -19,6 +19,8 @@ export default function Usuarios() {
   const [alta, setAlta] = useState(false)
   const [reset, setReset] = useState(null) // usuario al que se le resetea la clave
   const [error, setError] = useState('')
+  const [mailConfig, setMailConfig] = useState(null)
+  const [enviando, setEnviando] = useState(false)
 
   async function cargar() {
     setCargando(true)
@@ -26,6 +28,16 @@ export default function Usuarios() {
     catch (e) { setError(e.message) } finally { setCargando(false) }
   }
   useEffect(() => { cargar() }, [])
+  useEffect(() => { api('/api/reportes/mail-estado').then((r) => setMailConfig(r.configurado)).catch(() => setMailConfig(false)) }, [])
+
+  async function enviarResumen() {
+    setEnviando(true)
+    try {
+      const r = await api('/api/reportes/resumen-diario', { method: 'POST' })
+      if (!r.configurado) alert('El correo todavía no está configurado (faltan los datos del servidor SMTP).')
+      else alert(`Resumen enviado a ${r.enviados} persona(s). Omitidos: ${r.omitidos}.`)
+    } catch (e) { alert(e.message) } finally { setEnviando(false) }
+  }
 
   async function actualizar(u, cambios) {
     setError('')
@@ -87,6 +99,22 @@ export default function Usuarios() {
       <p className="tl-meta" style={{ marginTop: 10 }}>
         El email funciona como nombre de usuario para entrar. Desactivar no borra nada: la persona deja de poder ingresar pero su historial se conserva.
       </p>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-header"><span className="card-title"><Icono nombre="reportes" size={16} color="var(--teal)" /> Resumen diario por mail</span></div>
+        <div className="card-body">
+          <p style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 0 }}>
+            Cada persona recibe por mail la lista de sus expedientes pendientes de subir al Lex. El envío automático es a la mañana; también podés mandarlo ahora.
+          </p>
+          {mailConfig === false && (
+            <div className="alert alert-warn" style={{ marginBottom: 10 }}>
+              El correo todavía no está configurado. Para activarlo hay que cargar los datos del servidor (SMTP_HOST, SMTP_USER, SMTP_PASSWORD) en el backend. Mientras tanto el envío no hace nada.
+            </div>
+          )}
+          {mailConfig === true && <div className="alert alert-ok" style={{ marginBottom: 10 }}>Correo configurado.</div>}
+          <button className="btn btn-teal" onClick={enviarResumen} disabled={enviando}>{enviando ? <span className="spin" /> : 'Enviar resumen ahora'}</button>
+        </div>
+      </div>
 
       {alta && <FormAlta onClose={() => setAlta(false)} onGuardado={() => { setAlta(false); cargar() }} />}
       {reset && <FormReset usuario={reset} onClose={() => setReset(null)} onListo={() => setReset(null)} />}

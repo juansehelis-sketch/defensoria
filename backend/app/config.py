@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     # Dominios extra permitidos en producción (separados por coma), ej. el de Vercel
     CORS_ORIGINS: str = ""
 
+    # Correo (resumen diario de pendientes). Si no se configura, no se envía nada.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""           # remitente (por defecto = SMTP_USER)
+    SMTP_TLS: bool = True
+    RESUMEN_HORA: int = 8         # hora (0-23) del envío automático del resumen diario
+
     class Config:
         env_file = ".env"
         case_sensitive = True

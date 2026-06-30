@@ -117,6 +117,13 @@ async def startup_event():
     except Exception as e:
         print(f"[!] Backup no disponible: {e}")
 
+    # Resumen diario de pendientes por mail (solo si hay SMTP configurado).
+    try:
+        from app.services import mail as mail_svc
+        mail_svc.iniciar_resumen_diario()
+    except Exception as e:
+        print(f"[!] Resumen diario no disponible: {e}")
+
 
 @app.get("/api/health")
 async def health_check():
