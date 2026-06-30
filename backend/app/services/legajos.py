@@ -9,17 +9,32 @@ números se suman solos. También se pueden agregar a mano (ver api/legajos.py).
 import re
 
 _NUM_RE = re.compile(r"\d{3,7}/\d{4}(?:/\d+)*")
+# Palabras que indican que el expediente está vinculado a otros.
+_TRIGGERS = re.compile(r"conex|acumul|vincul|junto\s+con|en\s+conjunto", re.IGNORECASE)
 
 
 def extraer_conexos(texto: str) -> list:
-    """Devuelve los números de expediente que van después de 'conexos:'."""
+    """
+    Devuelve los números de expediente conexos detectados en el texto.
+
+    1) Si aparece el formato explícito "conexos: ...", toma los números que van
+       después (lo más preciso).
+    2) Si no, pero el texto menciona conexo/acumulado/vinculado/junto con, toma
+       todos los números de expediente que encuentre.
+    Así captura solo, escriban "conexos: 123/24" o "acumulado al 123/24".
+    """
     if not texto:
         return []
-    m = re.search(r"conexos?\s*:?\s*(.+)", texto, re.IGNORECASE | re.DOTALL)
-    if not m:
+    if not _NUM_RE.search(texto):
         return []
-    # únicos, conservando el orden
-    return list(dict.fromkeys(_NUM_RE.findall(m.group(1))))
+    m = re.search(r"conexos?\s*:?\s*(.+)", texto, re.IGNORECASE | re.DOTALL)
+    if m:
+        post = list(dict.fromkeys(_NUM_RE.findall(m.group(1))))
+        if post:
+            return post
+    if _TRIGGERS.search(texto):
+        return list(dict.fromkeys(_NUM_RE.findall(texto)))
+    return []
 
 
 def agregar_numeros(legajo, numeros) -> bool:
@@ -68,17 +83,15 @@ def asegurar_legajo(db, expediente):
 
 def capturar_desde_observaciones(db, expediente, observaciones: str):
     """
-    Si el expediente YA tiene legajo y las observaciones traen 'conexos:',
-    suma esos números (y el propio del expediente) al legajo.
+    Si las observaciones detectan conexos, los suma (y el propio número) al
+    legajo de la persona. Si el expediente todavía no tenía legajo, se crea
+    automáticamente: así basta escribir los conexos para armar el legajo.
     """
-    if not expediente or not expediente.legajo_id:
+    if not expediente:
         return None
     conexos = extraer_conexos(observaciones)
     if not conexos:
         return None
-    from app.models import Legajo
-    legajo = db.query(Legajo).filter(Legajo.id == expediente.legajo_id).first()
-    if not legajo:
-        return None
+    legajo = asegurar_legajo(db, expediente)
     agregar_numeros(legajo, conexos + ([expediente.numero] if expediente.numero else []))
     return legajo
