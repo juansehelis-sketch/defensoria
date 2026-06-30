@@ -2,9 +2,11 @@
  * Layout principal: header con navegación + área de contenido (Outlet).
  */
 
+import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Icono from './Icono'
+import { CambiarMiClave } from '../pages/Usuarios'
 
 // Solapas visibles para todos los roles.
 const TABS = [
@@ -20,6 +22,9 @@ const TABS = [
 export default function Layout() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
+  const [verClave, setVerClave] = useState(false)
+  const esAdmin = usuario && ['admin', 'defensora'].includes(usuario.rol)
+  const tabs = esAdmin ? [...TABS, { to: '/usuarios', label: 'Usuarios', icono: 'personas' }] : TABS
 
   return (
     <>
@@ -34,7 +39,7 @@ export default function Layout() {
         </div>
 
         <nav className="main-nav">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <NavLink
               key={t.to}
               to={t.to}
@@ -50,6 +55,9 @@ export default function Layout() {
         <div className="header-user">
           <span>{usuario?.nombre}</span>
           <span className="header-badge">{usuario?.rol}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setVerClave(true)} style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }} title="Cambiar mi contraseña">
+            Mi clave
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={logout} style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }}>
             Salir
           </button>
@@ -57,6 +65,7 @@ export default function Layout() {
       </header>
 
       <Outlet />
+      {verClave && <CambiarMiClave onClose={() => setVerClave(false)} />}
     </>
   )
 }
