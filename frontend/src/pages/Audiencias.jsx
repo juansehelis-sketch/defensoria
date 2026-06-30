@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react'
-import { api, API_BASE, obtenerToken } from '../utils/api'
+import { api, urlArchivo } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { diaLargo } from '../utils/format'
 import Icono from '../components/Icono'
@@ -17,23 +17,6 @@ import Modal from '../components/Modal'
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-
-// Descarga el acta de audiencia en Word (.docx) ya prellenada.
-async function descargarActa(a) {
-  try {
-    const resp = await fetch(`${API_BASE}/api/audiencias/${a.id}/acta`, {
-      method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` },
-    })
-    if (!resp.ok) throw new Error('No se pudo generar el acta.')
-    const blob = await resp.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `acta_${(a.numero_expediente || 'audiencia_' + a.id)}.docx`
-    document.body.appendChild(link); link.click(); link.remove()
-    URL.revokeObjectURL(url)
-  } catch (e) { alert(e.message) }
-}
 
 export default function Audiencias() {
   const { usuario } = useAuth()
@@ -46,6 +29,7 @@ export default function Audiencias() {
   const [diaSel, setDiaSel] = useState(null)
   const [mostrarImport, setMostrarImport] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [adjAud, setAdjAud] = useState(null) // audiencia cuyos archivos se ven
 
   async function cargar() {
     setCargando(true)
@@ -187,7 +171,7 @@ export default function Audiencias() {
             ) : (
               <div className="table-scroll">
                 <table className="data">
-                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Acta</th></tr></thead>
+                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Archivos</th></tr></thead>
                   <tbody>
                     {audienciasDiaSel.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).map((a) => (
                       <tr key={a.id} style={{ cursor: 'default' }}>
@@ -198,7 +182,7 @@ export default function Audiencias() {
                         <td className="muted" style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{a.modalidad === 'Virtual' ? (a.datos_acceso || '—') : (a.direccion || '—')}</td>
                         <td>{a.asignado_a || a.asesor || '—'}</td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
-                        <td><button className="btn btn-ghost btn-sm" onClick={() => descargarActa(a)} title="Descargar acta en Word"><Icono nombre="doc" size={14} /> Acta</button></td>
+                        <td><button className="btn btn-ghost btn-sm" onClick={() => setAdjAud(a)} title="Ver/agregar archivos (acta del juzgado, etc.)"><Icono nombre="clip" size={14} /> Archivos</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -216,7 +200,74 @@ export default function Audiencias() {
       {mostrarForm && (
         <FormAudiencia onClose={() => setMostrarForm(false)} onGuardado={() => { setMostrarForm(false); cargar() }} />
       )}
+      {adjAud && <AdjuntosAudiencia audiencia={adjAud} onClose={() => setAdjAud(null)} />}
     </div>
+  )
+}
+
+// ── Archivos adjuntos de una audiencia (acta del juzgado, cédulas, etc.) ──
+function AdjuntosAudiencia({ audiencia, onClose }) {
+  const [items, setItems] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState('')
+
+  async function cargar() {
+    setCargando(true)
+    try { setItems(await api(`/api/audiencias/${audiencia.id}/adjuntos`)) }
+    catch (e) { setError(e.message) } finally { setCargando(false) }
+  }
+  useEffect(() => { cargar() }, [])
+
+  async function subir(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(''); setSubiendo(true)
+    try {
+      const fd = new FormData()
+      fd.append('archivo', file)
+      await api(`/api/audiencias/${audiencia.id}/adjuntos`, { method: 'POST', body: fd, isForm: true })
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setSubiendo(false); e.target.value = '' }
+  }
+
+  async function borrar(id) {
+    if (!confirm('¿Eliminar este archivo?')) return
+    await api(`/api/audiencias/adjuntos/${id}`, { method: 'DELETE' })
+    cargar()
+  }
+
+  return (
+    <Modal titulo="Archivos de la audiencia" ancho={560} onClose={onClose}
+      footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}>
+      <p className="tl-meta" style={{ marginTop: 0, marginBottom: 12 }}>
+        Guardá acá el acta que manda el juzgado, cédulas u otros archivos de esta audiencia.
+      </p>
+      {error && <div className="alert alert-red">{error}</div>}
+
+      <label className="btn btn-teal" style={{ marginBottom: 14 }}>
+        {subiendo ? <span className="spin" /> : <><Icono nombre="importar" size={15} /> Agregar archivo</>}
+        <input type="file" onChange={subir} disabled={subiendo} style={{ display: 'none' }} />
+      </label>
+
+      {cargando ? (
+        <div className="loading-center"><span className="spin" /></div>
+      ) : items.length === 0 ? (
+        <div className="empty">Todavía no hay archivos en esta audiencia.</div>
+      ) : (
+        <div>
+          {items.map((f) => (
+            <div key={f.id} className="row" style={{ justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+              <a href={urlArchivo(f.archivo_url)} target="_blank" rel="noreferrer" className="row" style={{ gap: 7, minWidth: 0 }}>
+                <Icono nombre="doc" size={15} color="var(--teal)" />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nombre}</span>
+              </a>
+              <button className="btn btn-ghost btn-sm" onClick={() => borrar(f.id)} title="Eliminar"><Icono nombre="borrar" size={14} color="var(--red)" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   )
 }
 

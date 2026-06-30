@@ -307,3 +307,14 @@ class DiaNoHabil(Base):
     id = Column(Integer, primary_key=True, index=True)
     fecha = Column(Date, unique=True, index=True)
     motivo = Column(String, nullable=True)
+
+
+class AdjuntoAudiencia(Base):
+    """Archivos adjuntos a una audiencia (ej. el acta que envía el juzgado)."""
+    __tablename__ = "adjuntos_audiencia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    audiencia_id = Column(Integer, ForeignKey("audiencias.id"), index=True)
+    nombre = Column(String)
+    archivo_url = Column(String)
+    fecha_creacion = Column(DateTime, default=datetime.now)
