@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react'
-import { api } from '../utils/api'
+import { api, API_BASE, obtenerToken } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { diaLargo } from '../utils/format'
 import Icono from '../components/Icono'
@@ -17,6 +17,23 @@ import Modal from '../components/Modal'
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+// Descarga el acta de audiencia en Word (.docx) ya prellenada.
+async function descargarActa(a) {
+  try {
+    const resp = await fetch(`${API_BASE}/api/audiencias/${a.id}/acta`, {
+      method: 'POST', headers: { Authorization: `Bearer ${obtenerToken()}` },
+    })
+    if (!resp.ok) throw new Error('No se pudo generar el acta.')
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `acta_${(a.numero_expediente || 'audiencia_' + a.id)}.docx`
+    document.body.appendChild(link); link.click(); link.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) { alert(e.message) }
+}
 
 export default function Audiencias() {
   const { usuario } = useAuth()
@@ -170,7 +187,7 @@ export default function Audiencias() {
             ) : (
               <div className="table-scroll">
                 <table className="data">
-                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th></tr></thead>
+                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Acta</th></tr></thead>
                   <tbody>
                     {audienciasDiaSel.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).map((a) => (
                       <tr key={a.id} style={{ cursor: 'default' }}>
@@ -181,6 +198,7 @@ export default function Audiencias() {
                         <td className="muted" style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{a.modalidad === 'Virtual' ? (a.datos_acceso || '—') : (a.direccion || '—')}</td>
                         <td>{a.asignado_a || a.asesor || '—'}</td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
+                        <td><button className="btn btn-ghost btn-sm" onClick={() => descargarActa(a)} title="Descargar acta en Word"><Icono nombre="doc" size={14} /> Acta</button></td>
                       </tr>
                     ))}
                   </tbody>

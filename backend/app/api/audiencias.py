@@ -4,9 +4,11 @@ e importación desde texto pegado (formato de la planilla).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import date, time, datetime
+import io
 from app.database import get_db
 from app.models import Audiencia, Expediente
 from app.schemas import Audiencia as AudienciaSchema, AudienciaCreate
@@ -99,6 +101,89 @@ async def eliminar_audiencia(audiencia_id: int, db: Session = Depends(get_db)):
     db.delete(audiencia)
     db.commit()
     return {"message": "Audiencia eliminada"}
+
+
+# ── Acta de audiencia (Word para completar y firmar) ───────────
+
+@router.post("/{audiencia_id}/acta")
+async def generar_acta(audiencia_id: int, db: Session = Depends(get_db)):
+    """
+    Genera un acta de audiencia en Word (.docx) ya prellenada con los datos
+    (fecha, hora, juzgado, expediente, carátula) y con espacio para completar
+    lo ocurrido. Se descarga y se termina en Word.
+    """
+    from docx import Document
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from app.services import plantillas as plantillas_svc
+
+    a = db.query(Audiencia).filter(Audiencia.id == audiencia_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Audiencia no encontrada")
+
+    exp = a.expediente
+    numero = (exp.numero if exp else None) or "—"
+    caratula = (exp.caratula if exp else None) or "—"
+    juzgado = a.juzgado or (exp.juzgado if exp else None) or "—"
+    fecha_letras = plantillas_svc.fecha_en_letras(a.fecha) if a.fecha else "—"
+    hora = a.hora.strftime("%H:%M") if a.hora else "—"
+
+    doc = Document()
+    titulo = doc.add_paragraph()
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = titulo.add_run("ACTA DE AUDIENCIA")
+    r.bold = True
+    r.font.size = Pt(14)
+    doc.add_paragraph()
+
+    def campo(label, valor):
+        p = doc.add_paragraph()
+        b = p.add_run(f"{label}: ")
+        b.bold = True
+        p.add_run(valor or "—")
+
+    campo("Fecha", fecha_letras)
+    campo("Hora", hora)
+    campo("Juzgado", juzgado)
+    campo("Expediente N°", numero)
+    campo("Autos", caratula)
+    if a.modalidad:
+        campo("Modalidad", a.modalidad)
+    campo("Por la Defensoría", a.asignado_a or "")
+    if a.motivo:
+        campo("Motivo", a.motivo)
+
+    doc.add_paragraph()
+    intro = doc.add_paragraph()
+    intro.add_run(
+        f"En la audiencia celebrada el día {fecha_letras}, siendo las {hora} horas, "
+        f"en los autos caratulados \"{caratula}\" (Expte. N° {numero}) que tramitan ante el "
+        f"{juzgado}, comparece la Defensoría Pública de Menores e Incapaces N° 6, y se deja "
+        "constancia de lo siguiente:"
+    )
+    for _ in range(8):
+        doc.add_paragraph()
+
+    cierre = doc.add_paragraph()
+    cierre.add_run(
+        "No siendo para más, se da por finalizado el acto, previa lectura y ratificación de los comparecientes."
+    )
+    doc.add_paragraph()
+    doc.add_paragraph()
+    firma = doc.add_paragraph()
+    firma.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    firma.add_run("_______________________________")
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    base = "".join(c for c in numero if c.isalnum() or c in "-_") or "audiencia"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="acta_{base}.docx"'},
+    )
 
 
 # ── Importación desde texto pegado ─────────────────────────────
