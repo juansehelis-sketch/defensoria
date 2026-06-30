@@ -21,6 +21,7 @@ from app.api import (
     modelos,
     legajos,
     tareas,
+    buscar,
 )
 
 # Crear app
@@ -84,6 +85,7 @@ app.include_router(proyectos.router, dependencies=_auth)
 app.include_router(modelos.router, dependencies=_auth)
 app.include_router(legajos.router, dependencies=_auth)
 app.include_router(tareas.router, dependencies=_auth)
+app.include_router(buscar.router, dependencies=_auth)
 
 # Inicializar BD al startup
 @app.on_event("startup")

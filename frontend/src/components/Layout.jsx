@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Icono from './Icono'
+import BuscadorGlobal from './BuscadorGlobal'
 import { CambiarMiClave } from '../pages/Usuarios'
 
 // Solapas visibles para todos los roles.
@@ -51,6 +52,8 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        <BuscadorGlobal />
 
         <div className="header-user">
           <span>{usuario?.nombre}</span>
