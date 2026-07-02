@@ -73,12 +73,19 @@ def leer(nombre: str) -> bytes | None:
     """Devuelve los bytes de un archivo, o None si no existe."""
     url, key, bucket = _config()
     if url and key:
-        endpoint = f"{url}/storage/v1/object/{bucket}/{nombre}"
-        req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {key}"})
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                return resp.read()
-        except urllib.error.HTTPError:
-            return None
+        headers = {"Authorization": f"Bearer {key}", "apikey": key}
+        # Se prueban las dos rutas de descarga de Supabase Storage.
+        for endpoint in (
+            f"{url}/storage/v1/object/{bucket}/{nombre}",
+            f"{url}/storage/v1/object/authenticated/{bucket}/{nombre}",
+        ):
+            try:
+                with urllib.request.urlopen(urllib.request.Request(endpoint, headers=headers), timeout=60) as resp:
+                    return resp.read()
+            except urllib.error.HTTPError:
+                continue
+            except Exception:
+                continue
+        return None
     p = UPLOAD_DIR / nombre
     return p.read_bytes() if p.is_file() else None
