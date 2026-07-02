@@ -23,10 +23,16 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 def _config():
+    url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    # Tolerante: si pegaron el "RESTful endpoint" (u otro) en vez de la Project
+    # URL pelada (https://xxxx.supabase.co), sacamos el sufijo de más.
+    for suf in ("/rest/v1", "/rest", "/storage/v1", "/auth/v1"):
+        if url.endswith(suf):
+            url = url[: -len(suf)]
     return (
-        os.getenv("SUPABASE_URL", "").rstrip("/"),
-        os.getenv("SUPABASE_SERVICE_KEY", ""),
-        os.getenv("SUPABASE_BUCKET", "adjuntos"),
+        url,
+        os.getenv("SUPABASE_SERVICE_KEY", "").strip(),
+        (os.getenv("SUPABASE_BUCKET", "adjuntos").strip() or "adjuntos"),
     )
 
 
