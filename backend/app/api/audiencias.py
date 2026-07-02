@@ -133,7 +133,10 @@ async def subir_adjunto(
     ext = Path(archivo.filename).suffix
     nombre_guardado = f"{uuid.uuid4().hex}{ext}"
     datos = await archivo.read()
-    storage.guardar(nombre_guardado, datos, archivo.content_type)
+    try:
+        storage.guardar(nombre_guardado, datos, archivo.content_type)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo guardar el archivo: {e}")
 
     adj = AdjuntoAudiencia(
         audiencia_id=audiencia_id,

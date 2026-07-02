@@ -46,12 +46,19 @@ def guardar(nombre: str, contenido: bytes, content_type: str = "application/octe
             method="POST",
             headers={
                 "Authorization": f"Bearer {key}",
+                "apikey": key,
                 "Content-Type": content_type or "application/octet-stream",
                 "x-upsert": "true",
             },
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            resp.read()
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                resp.read()
+        except urllib.error.HTTPError as e:
+            detalle = e.read().decode(errors="ignore")[:300]
+            raise RuntimeError(f"Supabase Storage {e.code}: {detalle}")
+        except Exception as e:
+            raise RuntimeError(f"No se pudo conectar con Supabase Storage: {e}")
     else:
         (UPLOAD_DIR / nombre).write_bytes(contenido)
 
