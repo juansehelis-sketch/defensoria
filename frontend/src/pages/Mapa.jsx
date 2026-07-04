@@ -40,12 +40,18 @@ function pinIcon(color) {
 }
 
 // Geolocaliza una dirección de CABA. Devuelve {lat,lng} o null.
+// Se acota a Argentina y a la caja de CABA para no traer calles homónimas de
+// otras ciudades. La confirmación final la hace la persona arrastrando el pin.
 async function geocodificar(direccion) {
   const q = (direccion || '').trim()
   if (!q) return null
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q + ', Ciudad Autónoma de Buenos Aires, Argentina')}`
-    const r = await fetch(url, { headers: { 'Accept-Language': 'es' } })
+    const params = new URLSearchParams({
+      format: 'json', limit: '1', countrycodes: 'ar', bounded: '1',
+      viewbox: '-58.531,-34.526,-58.335,-34.705', // CABA (izq,arriba,der,abajo)
+      q: `${q}, Ciudad Autónoma de Buenos Aires, Argentina`,
+    })
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'es' } })
     const d = await r.json()
     if (d && d.length) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) }
   } catch { /* ignorar */ }
@@ -58,6 +64,8 @@ export default function Mapa() {
   const capa = useRef(null)
   const modoRef = useRef('ver')
   const pendiente = useRef(null) // datos del form mientras se marca a mano
+  const confirmMarker = useRef(null)
+  const confirmCoords = useRef(null)
 
   const [lugares, setLugares] = useState([])
   const [modo, setModo] = useState('ver')   // 'ver' | 'agregar'
@@ -65,6 +73,7 @@ export default function Mapa() {
   const [detalle, setDetalle] = useState(null) // lugar abierto en su ficha
   const [dir, setDir] = useState('')
   const [buscando, setBuscando] = useState(false)
+  const [confirmando, setConfirmando] = useState(null) // {formData} al confirmar ubicación
 
   useEffect(() => { modoRef.current = modo }, [modo])
 
@@ -118,6 +127,33 @@ export default function Mapa() {
     pendiente.current = datosForm
     setForm(null)
     setModo('agregar')
+  }
+
+  // Confirmación de la ubicación geocodificada: pin negro arrastrable + barra.
+  function iniciarConfirmacion(coords, formData) {
+    setForm(null)
+    confirmCoords.current = coords
+    if (confirmMarker.current) mapa.current.removeLayer(confirmMarker.current)
+    const mk = L.marker([coords.lat, coords.lng], { icon: pinIcon('#111827'), draggable: true })
+    mk.on('dragend', () => { const p = mk.getLatLng(); confirmCoords.current = { lat: p.lat, lng: p.lng } })
+    mk.addTo(mapa.current)
+    confirmMarker.current = mk
+    mapa.current.setView([coords.lat, coords.lng], 17)
+    setConfirmando({ formData })
+  }
+  function _quitarConfirmMarker() {
+    if (confirmMarker.current) { mapa.current.removeLayer(confirmMarker.current); confirmMarker.current = null }
+  }
+  function confirmarUbicacion() {
+    const c = confirmCoords.current
+    const fd = confirmando.formData
+    _quitarConfirmMarker(); setConfirmando(null)
+    setForm({ ...fd, lat: c.lat, lng: c.lng })
+  }
+  function cancelarUbicacion() {
+    const fd = confirmando.formData
+    _quitarConfirmMarker(); setConfirmando(null)
+    setForm(fd)
   }
 
   async function borrar(l) {
@@ -188,12 +224,21 @@ export default function Mapa() {
         </div>
       </div>
 
-      <div ref={contenedor} style={{ flex: 1, height: '100%' }} />
+      <div style={{ flex: 1, position: 'relative' }}>
+        <div ref={contenedor} style={{ position: 'absolute', inset: 0 }} />
+        {confirmando && (
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,.15)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, maxWidth: '92%' }}>
+            <span style={{ fontSize: 13.5 }}>¿Quedó bien la marca? Arrastrá el pin negro hasta el lugar exacto.</span>
+            <button className="btn btn-ghost btn-sm" onClick={cancelarUbicacion}>Cancelar</button>
+            <button className="btn btn-teal btn-sm" onClick={confirmarUbicacion}>Confirmar</button>
+          </div>
+        )}
+      </div>
 
       {form && (
         <FormLugar datos={form} onClose={() => setForm(null)}
           onGuardado={(guardado) => { setForm(null); cargar(); if (guardado) irA(guardado) }}
-          onMarcarMapa={marcarAMano} />
+          onMarcarMapa={marcarAMano} onUbicar={iniciarConfirmacion} />
       )}
       {detalle && (
         <DetalleLugar lugar={detalle} onClose={() => setDetalle(null)}
@@ -205,7 +250,7 @@ export default function Mapa() {
   )
 }
 
-function FormLugar({ datos, onClose, onGuardado, onMarcarMapa }) {
+function FormLugar({ datos, onClose, onGuardado, onMarcarMapa, onUbicar }) {
   const [f, setF] = useState(datos)
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -219,24 +264,22 @@ function FormLugar({ datos, onClose, onGuardado, onMarcarMapa }) {
     setError(''); setUbicando(true)
     const c = await geocodificar(f.direccion)
     setUbicando(false)
-    if (c) setF((p) => ({ ...p, lat: c.lat, lng: c.lng }))
+    if (c) onUbicar(c, f)  // pasa a confirmar/ajustar el pin en el mapa
     else setError('No encontramos esa dirección. Revisá calle y número, o marcala a mano en el mapa.')
   }
 
   async function guardar() {
     setError('')
     if (!f.nombre.trim()) { setError('Poné el nombre de la institución.'); return }
-    let ff = f
-    if (ff.lat == null || ff.lng == null) {
-      const c = await geocodificar(f.direccion)
-      if (c) ff = { ...f, lat: c.lat, lng: c.lng }
-      else { setError('Falta la ubicación. Tocá "Ubicar" con la dirección, o marcala a mano en el mapa.'); return }
+    if (f.lat == null || f.lng == null) {
+      setError('Falta fijar la ubicación: escribí la dirección y tocá "Ubicar", o marcala a mano en el mapa.')
+      return
     }
     setGuardando(true)
     try {
       const guardado = esNuevo
-        ? await api('/api/mapa/lugares', { method: 'POST', body: ff })
-        : await api(`/api/mapa/lugares/${ff.id}`, { method: 'PUT', body: ff })
+        ? await api('/api/mapa/lugares', { method: 'POST', body: f })
+        : await api(`/api/mapa/lugares/${f.id}`, { method: 'PUT', body: f })
       onGuardado(guardado)
     } catch (e) { setError(e.message) } finally { setGuardando(false) }
   }
