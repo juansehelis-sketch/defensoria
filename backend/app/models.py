@@ -336,3 +336,23 @@ class LugarMapa(Base):
     lat = Column(Float)
     lng = Column(Float)
     fecha_creacion = Column(DateTime, default=datetime.now)
+
+    internados = relationship("InternadoLugar", back_populates="lugar", cascade="all, delete-orphan")
+
+
+class InternadoLugar(Base):
+    """
+    Persona internada en una institución del mapa, opcionalmente vinculada a un
+    expediente. Una institución puede tener varias.
+    """
+    __tablename__ = "internados_lugar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lugar_id = Column(Integer, ForeignKey("lugares_mapa.id"), index=True)
+    nombre = Column(String)
+    expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
+    expediente_numero = Column(String, nullable=True)   # como lo escribieron (para mostrar)
+    observaciones = Column(Text, nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+
+    lugar = relationship("LugarMapa", back_populates="internados")
