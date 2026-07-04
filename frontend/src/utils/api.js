@@ -18,10 +18,18 @@ export const API_BASE = (
   (_enVercel ? 'https://defensoria.onrender.com' : '')
 ).replace(/\/+$/, '')
 
-/** Resuelve la URL de un archivo adjunto (le antepone el backend si hace falta). */
+/**
+ * Resuelve la URL de un archivo adjunto (le antepone el backend si hace falta) y
+ * le agrega el token de login como parámetro. El endpoint /uploads exige login,
+ * y como las imágenes/iframes/enlaces del navegador NO mandan el header
+ * Authorization, el token viaja en la URL (?token=...).
+ */
 export function urlArchivo(u) {
   if (!u) return u
-  return /^https?:\/\//.test(u) ? u : API_BASE + u
+  const base = /^https?:\/\//.test(u) ? u : API_BASE + u
+  const token = obtenerToken()
+  if (!token) return base
+  return base + (base.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token)
 }
 
 const TOKEN_KEY = 'defensoria_token'

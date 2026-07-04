@@ -60,10 +60,21 @@ from app.services import storage as _storage
 
 
 @app.get("/uploads/{nombre}")
-async def servir_adjunto(nombre: str):
+async def servir_adjunto(nombre: str, request: Request, token: str = ""):
+    # Exige login: el token puede venir por header Authorization o por ?token=
+    # (las imágenes/iframes del navegador no mandan headers, así que se usa la URL).
+    from fastapi.responses import JSONResponse as _JR
+    from app.utils.auth import decodificar_token
+    auth = request.headers.get("authorization", "")
+    tok = token or (auth.split(" ", 1)[1] if auth.lower().startswith("bearer ") else "")
+    try:
+        if not decodificar_token(tok).get("sub"):
+            raise ValueError()
+    except Exception:
+        return _JR({"detail": "No autorizado. Iniciá sesión para ver el archivo."}, status_code=401)
+
     datos = _storage.leer(nombre)
     if datos is None:
-        from fastapi.responses import JSONResponse as _JR
         return _JR({"detail": "Archivo no encontrado"}, status_code=404)
     media = _mime.guess_type(nombre)[0] or "application/octet-stream"
     return _Response(content=datos, media_type=media)
