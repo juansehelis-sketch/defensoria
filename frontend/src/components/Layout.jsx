@@ -17,6 +17,7 @@ const TABS = [
   { to: '/a-la-firma', label: 'A la firma', icono: 'firma' },
   { to: '/audiencias', label: 'Audiencias', icono: 'audiencias' },
   { to: '/modelos', label: 'Modelos', icono: 'modelos' },
+  { to: '/mapa', label: 'Mapa', icono: 'mapa' },
   { to: '/reportes', label: 'Reportes', icono: 'reportes' },
 ]
 

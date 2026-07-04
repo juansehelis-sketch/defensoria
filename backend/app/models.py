@@ -2,7 +2,7 @@
 Modelos SQLAlchemy para la base de datos.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Date, Time
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Date, Time, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -317,4 +317,22 @@ class AdjuntoAudiencia(Base):
     audiencia_id = Column(Integer, ForeignKey("audiencias.id"), index=True)
     nombre = Column(String)
     archivo_url = Column(String)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+
+
+class LugarMapa(Base):
+    """
+    Lugar marcado en el mapa: instituciones donde hay personas internadas
+    (hospitales, hogares, salud mental, geriátricos, etc.).
+    """
+    __tablename__ = "lugares_mapa"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String)
+    tipo = Column(String, default="otro")          # hospital, hogar, salud_mental, centro_dia, geriatrico, otro
+    direccion = Column(String, nullable=True)
+    telefono = Column(String, nullable=True)
+    observaciones = Column(Text, nullable=True)
+    lat = Column(Float)
+    lng = Column(Float)
     fecha_creacion = Column(DateTime, default=datetime.now)

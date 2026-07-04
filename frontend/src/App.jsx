@@ -15,6 +15,7 @@ import Reportes from './pages/Reportes'
 import Modelos from './pages/Modelos'
 import Legajos from './pages/Legajos'
 import Usuarios from './pages/Usuarios'
+import Mapa from './pages/Mapa'
 
 function RutaProtegida({ children }) {
   const { usuario, cargando } = useAuth()
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="a-la-firma" element={<Proyectos />} />
         <Route path="audiencias" element={<Audiencias />} />
         <Route path="modelos" element={<Modelos />} />
+        <Route path="mapa" element={<Mapa />} />
         <Route path="reportes" element={<Reportes />} />
         <Route path="usuarios" element={usuario && ['admin', 'defensora'].includes(usuario.rol) ? <Usuarios /> : <Navigate to="/" replace />} />
       </Route>
