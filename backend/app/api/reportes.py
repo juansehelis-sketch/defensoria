@@ -13,7 +13,7 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 import io
 from app.database import get_db
-from app.models import Expediente, Historial, Usuario, Audiencia, Proyecto
+from app.models import Expediente, Historial, Usuario, Audiencia, Proyecto, EntradaSalida
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
 
@@ -275,11 +275,21 @@ async def reporte_mensual_excel(anio: int, mes: int, db: Session = Depends(get_d
 async def carga_equipo(db: Session = Depends(get_db)):
     """Cuánto tiene cada persona pendiente y qué está demorado."""
     hace7 = datetime.now() - timedelta(days=7)
+    hace7d = hace7.date()
     filas = []
     for u in db.query(Usuario).filter(Usuario.activo == True).all():  # noqa: E712
         recibidos = db.query(func.count(Proyecto.id)).filter(Proyecto.destinatario_id == u.id, Proyecto.estado == "enviado").scalar() or 0
         enviados = db.query(func.count(Proyecto.id)).filter(Proyecto.remitente_id == u.id, Proyecto.estado.in_(["enviado", "en_correccion"])).scalar() or 0
-        demorados = db.query(func.count(Proyecto.id)).filter(Proyecto.destinatario_id == u.id, Proyecto.estado == "enviado", Proyecto.fecha_envio < hace7).scalar() or 0
+        # Demorados = expedientes PROPIOS que lleva la persona (asignados, sin subir
+        # al Lex, sin la vista cancelada) y que TODAVÍA NO mandó a la firma, con más
+        # de 7 días desde que entraron. NO cuenta lo que ya está a la firma.
+        demorados = db.query(func.count(EntradaSalida.id)).filter(
+            EntradaSalida.asignacion == u.nombre,
+            EntradaSalida.subido_lex.is_(None),
+            EntradaSalida.cancelada.isnot(True),
+            EntradaSalida.pase_firma.is_(None),
+            EntradaSalida.fecha < hace7d,
+        ).scalar() or 0
         exp_activos = None
         if u.rol == "despachante":
             exp_activos = db.query(func.count(Expediente.id)).filter(Expediente.despachante_id == u.id, Expediente.estado == "activo").scalar() or 0
