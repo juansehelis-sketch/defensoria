@@ -282,7 +282,12 @@ export default function Listado() {
       )}
       {mostrarPegar && (
         <PegarExcel fechaDefault={diaISO} onClose={() => setMostrarPegar(false)}
-          onListo={(n) => { setMostrarPegar(false); cargar(); alert(`Se cargaron ${n} fila(s) al listado.`) }} />
+          onListo={(r) => {
+            setMostrarPegar(false); cargar()
+            const nuevas = r.creados ?? r
+            const rep = r.omitidos ? ` (${r.omitidos} ya estaban y se saltearon)` : ''
+            alert(`Se agregaron ${nuevas} fila(s) nueva(s) al listado${rep}.`)
+          }} />
       )}
       {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}
       {mostrarOcultos && <DiasOcultos onClose={() => setMostrarOcultos(false)} onCambio={cargarOcultos} />}

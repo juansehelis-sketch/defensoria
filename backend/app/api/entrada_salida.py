@@ -96,8 +96,28 @@ async def crear_bulk(
     Crea varias filas del listado de una sola vez (pegado desde Excel).
     Cada fila acepta: fecha, juzgado, numero_expediente, autos, asignacion,
     pase_firma, subido_lex, observaciones, urgente.
+
+    NO duplica: si una fila ya está cargada (misma fecha + expediente + juzgado +
+    autos + asignación) se saltea. Así se puede re-pegar el Excel completo y solo
+    se agregan las filas nuevas.
     """
+    def _norm(s):
+        return " ".join((s or "").strip().split()).lower()
+
+    def _firma(fecha, numero, juzgado, autos, asignacion):
+        return (fecha.isoformat() if fecha else "", _norm(numero), _norm(juzgado), _norm(autos), _norm(asignacion))
+
+    # Firmas de lo que ya existe en la base (para no duplicar al re-pegar).
+    existentes = set()
+    for fe, ju, nu, au, asig in (
+        db.query(EntradaSalida.fecha, EntradaSalida.juzgado, Expediente.numero, EntradaSalida.autos, EntradaSalida.asignacion)
+        .outerjoin(Expediente, EntradaSalida.expediente_id == Expediente.id)
+        .all()
+    ):
+        existentes.add(_firma(fe, nu, ju, au, asig))
+
     creados = 0
+    omitidos = 0
     for f in filas:
         autos = (f.get("autos") or "").strip()
         numero = (f.get("numero_expediente") or "").replace("*", "").strip()
@@ -105,6 +125,12 @@ async def crear_bulk(
             continue  # fila vacía
         fecha = _a_fecha(f.get("fecha")) or date.today()
         asignacion = (f.get("asignacion") or "").strip() or None
+
+        firma = _firma(fecha, numero, f.get("juzgado"), autos, asignacion)
+        if firma in existentes:
+            omitidos += 1
+            continue  # ya estaba cargada
+        existentes.add(firma)
 
         expediente_id = None
         if numero:
@@ -129,7 +155,7 @@ async def crear_bulk(
         creados += 1
 
     db.commit()
-    return {"creados": creados}
+    return {"creados": creados, "omitidos": omitidos}
 
 
 @router.get("/", response_model=list[EntradaSalidaSchema])

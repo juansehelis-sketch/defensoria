@@ -73,7 +73,7 @@ export default function PegarExcel({ fechaDefault, onClose, onListo }) {
     setGuardando(true)
     try {
       const r = await api('/api/entrada-salida/bulk', { method: 'POST', body: rows })
-      onListo(r.creados)
+      onListo(r)
     } catch (e) { setError(e.message) } finally { setGuardando(false) }
   }
 
