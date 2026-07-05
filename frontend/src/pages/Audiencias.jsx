@@ -18,6 +18,57 @@ import Modal from '../components/Modal'
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
+// ── Agregar audiencia al calendario personal (Google / cualquiera) ──
+// Se arma el evento a partir de fecha + hora; dura 1 hora. Buenos Aires es
+// UTC-3 fijo (sin horario de verano), así que el pasaje a UTC es directo.
+function _eventoDe(a) {
+  const [y, m, d] = String(a.fecha).split('-').map(Number)
+  const [h, mi] = String(a.hora || '09:00').slice(0, 5).split(':').map(Number)
+  const p = (n) => String(n).padStart(2, '0')
+  const stamp = (ms) => { const t = new Date(ms); return `${t.getUTCFullYear()}${p(t.getUTCMonth() + 1)}${p(t.getUTCDate())}T${p(t.getUTCHours())}${p(t.getUTCMinutes())}00` }
+  const naiveMs = Date.UTC(y, m - 1, d, h || 9, mi || 0)          // hora local (naive)
+  const utcMs = Date.UTC(y, m - 1, d, (h || 9) + 3, mi || 0)      // ART (-3) → UTC
+  const text = `${a.motivo || 'Audiencia'}${a.juzgado ? ' — Juzgado ' + a.juzgado : ''}${a.numero_expediente ? ' · Expte ' + a.numero_expediente : ''}`
+  const location = a.modalidad === 'Virtual' ? (a.datos_acceso || 'Virtual') : (a.direccion || (a.juzgado ? `Juzgado ${a.juzgado}` : ''))
+  const details = [a.motivo && `Motivo: ${a.motivo}`, a.juzgado && `Juzgado: ${a.juzgado}`, a.modalidad && `Modalidad: ${a.modalidad}`, a.asignado_a && `Va: ${a.asignado_a}`].filter(Boolean).join('\n')
+  return {
+    text: text.trim(), location, details,
+    naive: `${stamp(naiveMs)}/${stamp(naiveMs + 3600000)}`,
+    utcIni: stamp(utcMs) + 'Z', utcFin: stamp(utcMs + 3600000) + 'Z',
+  }
+}
+
+function agregarAGoogle(a) {
+  const e = _eventoDe(a)
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&ctz=America/Argentina/Buenos_Aires`
+    + `&text=${encodeURIComponent(e.text)}&dates=${e.naive}`
+    + `&details=${encodeURIComponent(e.details)}&location=${encodeURIComponent(e.location)}`
+  window.open(url, '_blank', 'noopener')
+}
+
+function descargarICS(a) {
+  const e = _eventoDe(a)
+  const esc = (s) => (s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Defensoria//ES', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    `UID:audiencia-${a.id}@defensoria`, `DTSTAMP:${e.utcIni}`, `DTSTART:${e.utcIni}`, `DTEND:${e.utcFin}`,
+    `SUMMARY:${esc(e.text)}`, `DESCRIPTION:${esc(e.details)}`, `LOCATION:${esc(e.location)}`, 'END:VEVENT', 'END:VCALENDAR',
+  ].join('\r\n')
+  const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }))
+  const link = document.createElement('a')
+  link.href = url; link.download = `audiencia_${a.id}.ics`
+  document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
+}
+
+function BotonesCalendario({ a }) {
+  return (
+    <div className="row" style={{ gap: 4 }}>
+      <button className="btn btn-ghost btn-sm" onClick={() => agregarAGoogle(a)} title="Agregar a mi Google Calendar"><Icono nombre="audiencias" size={13} /> Google</button>
+      <button className="btn btn-ghost btn-sm" onClick={() => descargarICS(a)} title="Descargar para otro calendario (.ics)">.ics</button>
+    </div>
+  )
+}
+
 export default function Audiencias() {
   const { usuario } = useAuth()
   const hoy = new Date()
@@ -171,7 +222,7 @@ export default function Audiencias() {
             ) : (
               <div className="table-scroll">
                 <table className="data">
-                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Archivos</th></tr></thead>
+                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Archivos</th><th>Agenda</th></tr></thead>
                   <tbody>
                     {audienciasDiaSel.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).map((a) => (
                       <tr key={a.id} style={{ cursor: 'default' }}>
@@ -183,6 +234,7 @@ export default function Audiencias() {
                         <td>{a.asignado_a || a.asesor || '—'}</td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
                         <td><button className="btn btn-ghost btn-sm" onClick={() => setAdjAud(a)} title="Ver/agregar archivos (acta del juzgado, etc.)"><Icono nombre="clip" size={14} /> Archivos</button></td>
+                        <td><BotonesCalendario a={a} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -386,10 +438,11 @@ function MiAgenda() {
                       {a.modalidad === 'Virtual' ? <><Icono nombre="virtual" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Virtual</> : <><Icono nombre="presencial" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Presencial</>}{acceso ? ' · ' + acceso : ''}
                     </div>
                   </div>
-                  {/* Voy / No voy */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* Voy / No voy + agenda */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
                     <button className={'btn btn-sm ' + (est === 'va' ? 'btn-green' : 'btn-ghost')} onClick={() => marcar(a.id, est === 'va' ? 'pendiente' : 'va')}>{est === 'va' ? '✓ Voy' : 'Voy'}</button>
                     <button className={'btn btn-sm ' + (est === 'no_va' ? 'btn-red' : 'btn-ghost')} onClick={() => marcar(a.id, est === 'no_va' ? 'pendiente' : 'no_va')}>{est === 'no_va' ? '✗ No voy' : 'No voy'}</button>
+                    <BotonesCalendario a={a} />
                   </div>
                 </div>
               )
