@@ -18,7 +18,10 @@ const CAMPOS = [
   { v: 'subido_lex', t: 'Subido al Lex' },
   { v: 'observaciones', t: 'Observaciones' },
 ]
-const DEFAULT_MAP = ['juzgado', 'numero_expediente', 'autos', 'asignacion', 'pase_firma', 'subido_lex', 'observaciones']
+// Orden por defecto = el mismo del Excel que exporta el sistema:
+// Fecha · Juzgado · Expediente · Autos · Asignación · Pase a la firma · Subido al Lex · Observaciones
+// (la 9ª columna "Subido al Defensa" se ignora sola).
+const DEFAULT_MAP = ['fecha', 'juzgado', 'numero_expediente', 'autos', 'asignacion', 'pase_firma', 'subido_lex', 'observaciones']
 
 function adivinar(headers) {
   const n = (s) => (s || '').toLowerCase()
@@ -41,7 +44,20 @@ export default function PegarExcel({ fechaDefault, onClose, onListo }) {
   const [conEncabezado, setConEncabezado] = useState(true)
   const [mapa, setMapa] = useState(DEFAULT_MAP)
   const [guardando, setGuardando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
+
+  async function subirXlsx(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(''); setSubiendo(true)
+    try {
+      const fd = new FormData()
+      fd.append('archivo', file)
+      const r = await api('/api/entrada-salida/importar-xlsx', { method: 'POST', body: fd, isForm: true })
+      onListo(r)
+    } catch (err) { setError(err.message) } finally { setSubiendo(false); e.target.value = '' }
+  }
 
   const filas = useMemo(
     () => texto.split(/\r?\n/).filter((l) => l.trim() !== '').map((l) => l.split('\t')),
@@ -86,8 +102,18 @@ export default function PegarExcel({ fechaDefault, onClose, onListo }) {
         </button>
       </>}>
       {error && <div className="alert alert-red">{error}</div>}
+
+      <div style={{ background: 'var(--teal-lt)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>Opción rápida: subí el archivo Excel (.xlsx)</div>
+        <label className="btn btn-teal btn-sm" style={{ cursor: 'pointer' }}>
+          {subiendo ? <span className="spin" /> : 'Elegir archivo .xlsx'}
+          <input type="file" accept=".xlsx,.xlsm" onChange={subirXlsx} disabled={subiendo} style={{ display: 'none' }} />
+        </label>
+        <span className="tl-meta" style={{ marginLeft: 10, textTransform: 'none', letterSpacing: 0 }}>Lee el Excel, agrega solo lo nuevo y no duplica.</span>
+      </div>
+
       <div className="tl-meta" style={{ marginBottom: 8 }}>
-        Copiá las filas en tu Excel/Sheet (Ctrl+C) y pegalas acá (Ctrl+V). Después revisá que cada columna esté bien asignada en los desplegables.
+        …o pegá las filas a mano: copialas en tu Excel/Sheet (Ctrl+C) y pegalas acá (Ctrl+V). Después revisá que cada columna esté bien asignada en los desplegables.
       </div>
       <textarea value={texto} onChange={(e) => onPaste(e.target.value)} placeholder="Pegá acá las filas copiadas de Excel..."
         style={{ width: '100%', minHeight: 110, fontFamily: 'monospace', fontSize: 12 }} autoFocus />

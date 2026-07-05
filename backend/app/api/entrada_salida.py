@@ -2,7 +2,7 @@
 Endpoints para Entrada/Salida (registro diario, reemplaza Excel).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from datetime import date
@@ -86,20 +86,10 @@ async def crear_entrada_salida(
     return nueva_entrada
 
 
-@router.post("/bulk")
-async def crear_bulk(
-    filas: list[dict] = Body(...),
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(obtener_usuario_actual),
-):
+def _insertar_filas(db, filas):
     """
-    Crea varias filas del listado de una sola vez (pegado desde Excel).
-    Cada fila acepta: fecha, juzgado, numero_expediente, autos, asignacion,
-    pase_firma, subido_lex, observaciones, urgente.
-
-    NO duplica: si una fila ya está cargada (misma fecha + expediente + juzgado +
-    autos + asignación) se saltea. Así se puede re-pegar el Excel completo y solo
-    se agregan las filas nuevas.
+    Inserta filas del listado SIN duplicar. Una fila ya existe si coincide en
+    fecha + expediente + juzgado + autos + asignación. Devuelve {creados, omitidos}.
     """
     def _norm(s):
         return " ".join((s or "").strip().split()).lower()
@@ -107,7 +97,6 @@ async def crear_bulk(
     def _firma(fecha, numero, juzgado, autos, asignacion):
         return (fecha.isoformat() if fecha else "", _norm(numero), _norm(juzgado), _norm(autos), _norm(asignacion))
 
-    # Firmas de lo que ya existe en la base (para no duplicar al re-pegar).
     existentes = set()
     for fe, ju, nu, au, asig in (
         db.query(EntradaSalida.fecha, EntradaSalida.juzgado, Expediente.numero, EntradaSalida.autos, EntradaSalida.asignacion)
@@ -156,6 +145,84 @@ async def crear_bulk(
 
     db.commit()
     return {"creados": creados, "omitidos": omitidos}
+
+
+@router.post("/bulk")
+async def crear_bulk(
+    filas: list[dict] = Body(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Crea varias filas del listado (pegado desde Excel), sin duplicar."""
+    return _insertar_filas(db, filas)
+
+
+def _campo_de_encabezado(h: str) -> str:
+    """Traduce el nombre de una columna del Excel al campo interno."""
+    x = (h or "").strip().lower()
+    if "juzg" in x:
+        return "juzgado"
+    if "exped" in x or "n°" in x or "nro" in x:
+        return "numero_expediente"
+    if "auto" in x or "carat" in x or "carát" in x:
+        return "autos"
+    if "asign" in x or "despach" in x:
+        return "asignacion"
+    if "firma" in x or "pase" in x:
+        return "pase_firma"
+    if "lex" in x:
+        return "subido_lex"
+    if "observ" in x:
+        return "observaciones"
+    if "fecha" in x:
+        return "fecha"
+    return ""
+
+
+@router.post("/importar-xlsx")
+async def importar_xlsx(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Importa un Excel (.xlsx) al listado. Usa la primera fila como encabezado
+    para saber qué columna es cada dato, y NO duplica lo que ya está cargado.
+    """
+    from openpyxl import load_workbook
+    import io
+
+    if not (archivo.filename or "").lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Subí un archivo Excel (.xlsx).")
+    contenido = await archivo.read()
+    try:
+        wb = load_workbook(io.BytesIO(contenido), read_only=True, data_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el Excel. ¿Es un .xlsx válido?")
+
+    ws = wb.active
+    filas_raw = list(ws.iter_rows(values_only=True))
+    if not filas_raw:
+        return {"creados": 0, "omitidos": 0}
+
+    encabezados = [str(c) if c is not None else "" for c in filas_raw[0]]
+    mapa = [_campo_de_encabezado(h) for h in encabezados]
+    # Si no se reconoció ninguna columna, usar el orden del export del sistema.
+    if not any(mapa):
+        orden = ["fecha", "juzgado", "numero_expediente", "autos", "asignacion", "pase_firma", "subido_lex", "observaciones"]
+        mapa = [orden[i] if i < len(orden) else "" for i in range(len(encabezados))]
+
+    filas = []
+    for row in filas_raw[1:]:
+        obj = {}
+        for i, campo in enumerate(mapa):
+            if campo and i < len(row) and row[i] is not None:
+                v = row[i]
+                obj[campo] = v.strip() if isinstance(v, str) else str(v).strip()
+        if obj.get("autos") or obj.get("numero_expediente"):
+            filas.append(obj)
+
+    return _insertar_filas(db, filas)
 
 
 @router.get("/", response_model=list[EntradaSalidaSchema])
