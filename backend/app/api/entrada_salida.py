@@ -5,7 +5,8 @@ Endpoints para Entrada/Salida (registro diario, reemplaza Excel).
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
-from datetime import date
+from datetime import date, datetime
+import re
 from app.database import get_db
 from app.models import EntradaSalida, Expediente, Usuario, Notificacion, BorradoListado
 from app.schemas import (
@@ -88,8 +89,13 @@ async def crear_entrada_salida(
 
 def _insertar_filas(db, filas):
     """
-    Inserta filas del listado SIN duplicar. Una fila ya existe si coincide en
-    fecha + expediente + juzgado + autos + asignación. Devuelve {creados, omitidos}.
+    Carga filas del listado pensada para re-pegar el Excel completo cada día:
+      - Fila NUEVA (no coincide con nada) → se agrega.
+      - Fila que YA está (misma fecha + expediente + juzgado + autos + asignación):
+        si el Excel trae fecha de "pase a la firma" o "subido al Lex" que el
+        sistema no tenía (o cambió), se ACTUALIZA esa fila (y se repinta sola).
+        Si no hay nada nuevo, se saltea.
+    Devuelve {creados, actualizados, omitidos}.
     """
     def _norm(s):
         return " ".join((s or "").strip().split()).lower()
@@ -97,15 +103,17 @@ def _insertar_filas(db, filas):
     def _firma(fecha, numero, juzgado, autos, asignacion):
         return (fecha.isoformat() if fecha else "", _norm(numero), _norm(juzgado), _norm(autos), _norm(asignacion))
 
-    existentes = set()
-    for fe, ju, nu, au, asig in (
-        db.query(EntradaSalida.fecha, EntradaSalida.juzgado, Expediente.numero, EntradaSalida.autos, EntradaSalida.asignacion)
+    # Mapa firma → fila existente (la primera que coincida).
+    existentes = {}
+    for fila_db, nu in (
+        db.query(EntradaSalida, Expediente.numero)
         .outerjoin(Expediente, EntradaSalida.expediente_id == Expediente.id)
         .all()
     ):
-        existentes.add(_firma(fe, nu, ju, au, asig))
+        existentes.setdefault(_firma(fila_db.fecha, nu, fila_db.juzgado, fila_db.autos, fila_db.asignacion), fila_db)
 
     creados = 0
+    actualizados = 0
     omitidos = 0
     for f in filas:
         autos = (f.get("autos") or "").strip()
@@ -117,9 +125,22 @@ def _insertar_filas(db, filas):
 
         firma = _firma(fecha, numero, f.get("juzgado"), autos, asignacion)
         if firma in existentes:
-            omitidos += 1
-            continue  # ya estaba cargada
-        existentes.add(firma)
+            # Ya estaba: ver si el Excel trae fechas nuevas para actualizar.
+            fila_db = existentes[firma]
+            pf = _a_fecha(f.get("pase_firma"))
+            sl = _a_fecha(f.get("subido_lex"))
+            cambio = False
+            if pf and pf != fila_db.pase_firma:
+                fila_db.pase_firma = pf
+                cambio = True
+            if sl and sl != fila_db.subido_lex:
+                fila_db.subido_lex = sl
+                cambio = True
+            if cambio:
+                actualizados += 1
+            else:
+                omitidos += 1
+            continue
 
         expediente_id = None
         if numero:
@@ -135,16 +156,18 @@ def _insertar_filas(db, filas):
                 db.flush()
             expediente_id = exp.id
 
-        db.add(EntradaSalida(
+        nueva = EntradaSalida(
             fecha=fecha, juzgado=f.get("juzgado"), expediente_id=expediente_id, autos=autos,
             asignacion=asignacion, pase_firma=_a_fecha(f.get("pase_firma")),
             subido_lex=_a_fecha(f.get("subido_lex")), observaciones=f.get("observaciones"),
             urgente=bool(f.get("urgente")),
-        ))
+        )
+        db.add(nueva)
+        existentes[firma] = nueva  # por si la misma fila viene repetida en el archivo
         creados += 1
 
     db.commit()
-    return {"creados": creados, "omitidos": omitidos}
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos}
 
 
 @router.post("/bulk")
@@ -153,7 +176,7 @@ async def crear_bulk(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    """Crea varias filas del listado (pegado desde Excel), sin duplicar."""
+    """Crea varias filas del listado (pegado desde Excel), sin duplicar; actualiza fechas de firma/subido."""
     return _insertar_filas(db, filas)
 
 
@@ -323,13 +346,29 @@ _CAMPOS_FECHA = {"fecha", "pase_firma", "subido_lex"}
 
 
 def _a_fecha(valor):
-    """'' o None → None; 'aaaa-mm-dd' → date."""
+    """
+    '' o None → None; date/datetime → date.
+    Entiende 'aaaa-mm-dd' (ISO) y también 'dd/mm/aaaa' o 'dd-mm-aaaa'
+    (como pega Excel), con o sin hora al final.
+    """
     if valor in (None, "", "null"):
         return None
+    if isinstance(valor, datetime):
+        return valor.date()
     if isinstance(valor, date):
         return valor
+    s = str(valor).strip()
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", s)
+    if m:
+        d_, m_, y_ = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if y_ < 100:
+            y_ += 2000
+        try:
+            return date(y_, m_, d_)
+        except ValueError:
+            return None
     try:
-        return date.fromisoformat(str(valor)[:10])
+        return date.fromisoformat(s[:10])
     except ValueError:
         return None
 

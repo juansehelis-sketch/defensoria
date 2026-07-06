@@ -285,9 +285,10 @@ export default function Listado() {
         <PegarExcel fechaDefault={diaISO} onClose={() => setMostrarPegar(false)}
           onListo={(r) => {
             setMostrarPegar(false); cargar()
-            const nuevas = r.creados ?? r
-            const rep = r.omitidos ? ` (${r.omitidos} ya estaban y se saltearon)` : ''
-            alert(`Se agregaron ${nuevas} fila(s) nueva(s) al listado${rep}.`)
+            const partes = [`${r.creados ?? r} fila(s) nueva(s)`]
+            if (r.actualizados) partes.push(`${r.actualizados} actualizada(s) con fechas de firma/subido`)
+            if (r.omitidos) partes.push(`${r.omitidos} sin cambios`)
+            alert(partes.join(' · '))
           }} />
       )}
       {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}
