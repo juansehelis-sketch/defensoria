@@ -117,9 +117,11 @@ class Expediente(ExpedienteBase):
 
 class EntradaSalidaBase(BaseModel):
     fecha: date
-    juzgado: str
+    # juzgado y asignación pueden faltar (filas cargadas desde Excel a medio
+    # completar); si fueran obligatorios, listar esas filas rompería con 500.
+    juzgado: Optional[str] = None
     autos: str
-    asignacion: str
+    asignacion: Optional[str] = None
     pase_firma: Optional[date] = None
     subido_lex: Optional[date] = None
     observaciones: Optional[str] = None
