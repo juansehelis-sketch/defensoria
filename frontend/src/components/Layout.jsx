@@ -13,10 +13,10 @@ import { CambiarMiClave } from '../pages/Usuarios'
 const TABS = [
   { to: '/', label: 'Inicio', icono: 'inicio', end: true },
   { to: '/expedientes', label: 'Expedientes', icono: 'expedientes' },
-  { to: '/legajos', label: 'Legajos', icono: 'personas' },
   { to: '/a-la-firma', label: 'A la firma', icono: 'firma' },
   { to: '/audiencias', label: 'Audiencias', icono: 'audiencias' },
   { to: '/modelos', label: 'Modelos', icono: 'modelos' },
+  { to: '/legajos', label: 'Legajos', icono: 'personas' },
   { to: '/mapa', label: 'Mapa', icono: 'mapa' },
   { to: '/reportes', label: 'Reportes', icono: 'reportes' },
 ]

@@ -277,7 +277,8 @@ async def carga_equipo(db: Session = Depends(get_db)):
     hace7 = datetime.now() - timedelta(days=7)
     hace7d = hace7.date()
     filas = []
-    for u in db.query(Usuario).filter(Usuario.activo == True).all():  # noqa: E712
+    # El administrador es una cuenta de sistema: no trabaja expedientes, no va al reporte.
+    for u in db.query(Usuario).filter(Usuario.activo == True, Usuario.rol != "admin").all():  # noqa: E712
         recibidos = db.query(func.count(Proyecto.id)).filter(Proyecto.destinatario_id == u.id, Proyecto.estado == "enviado").scalar() or 0
         enviados = db.query(func.count(Proyecto.id)).filter(Proyecto.remitente_id == u.id, Proyecto.estado.in_(["enviado", "en_correccion"])).scalar() or 0
         # Demorados = expedientes PROPIOS que lleva la persona (asignados, sin subir
