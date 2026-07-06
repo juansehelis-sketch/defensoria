@@ -98,13 +98,22 @@ async def borrar(lugar_id: int, db: Session = Depends(get_db), _u: Usuario = Dep
 
 @router.get("/lugares/{lugar_id}/internados")
 async def listar_internados(lugar_id: int, db: Session = Depends(get_db)):
+    from app.services import legajos as legajos_svc
     items = (
         db.query(InternadoLugar)
         .filter(InternadoLugar.lugar_id == lugar_id)
         .order_by(InternadoLugar.nombre.asc())
         .all()
     )
-    return [_dump_int(p) for p in items]
+    salida = []
+    for p in items:
+        d = _dump_int(p)
+        leg = legajos_svc.legajo_de_internado(db, p)
+        if leg:
+            d["legajo_id"] = leg.id
+            d["legajo_nombre"] = leg.nombre
+        salida.append(d)
+    return salida
 
 
 @router.post("/lugares/{lugar_id}/internados")

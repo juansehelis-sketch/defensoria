@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.database import get_db
-from app.models import Expediente, Notificacion, Proyecto, Usuario, Audiencia, EntradaSalida
+from app.models import Expediente, Notificacion, Proyecto, Usuario, Audiencia, EntradaSalida, Tarea
 from app.schemas import Notificacion as NotificacionSchema, EntradaSalida as EntradaSalidaSchema
 from app.utils.deps import obtener_usuario_actual
 
@@ -158,6 +158,28 @@ async def listar_notificaciones(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     """Lista las notificaciones del usuario (más recientes primero)."""
+    # Tareas con fecha: al llegar el día, aparece una novedad (una sola vez).
+    hoy = datetime.now().date()
+    vencen = (
+        db.query(Tarea)
+        .filter(Tarea.usuario_id == usuario.id)
+        .filter(Tarea.hecha == False)  # noqa: E712
+        .filter(Tarea.notificada.isnot(True))
+        .filter(Tarea.fecha_limite.isnot(None))
+        .filter(Tarea.fecha_limite <= hoy)
+        .all()
+    )
+    for t in vencen:
+        db.add(Notificacion(
+            usuario_id=usuario.id,
+            tipo="tarea",
+            contenido=f"Tarea para hoy: {t.titulo}",
+            expediente_id=t.expediente_id,
+        ))
+        t.notificada = True
+    if vencen:
+        db.commit()
+
     return (
         db.query(Notificacion)
         .filter(Notificacion.usuario_id == usuario.id)

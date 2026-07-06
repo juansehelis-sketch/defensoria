@@ -31,6 +31,26 @@ async def crear(datos: LegajoCreate, db: Session = Depends(get_db), _u: Usuario 
     return legajo
 
 
+# OJO: esta ruta va ANTES de /{legajo_id} para que no la tape.
+@router.get("/instituciones")
+async def instituciones_de_legajos(db: Session = Depends(get_db)):
+    """
+    Para cada legajo, en qué institución del mapa está internada la persona
+    (si está en alguna). Devuelve {legajo_id: {lugar_id, lugar_nombre, lugar_tipo}}.
+    """
+    from app.models import InternadoLugar
+    res = {}
+    for p in db.query(InternadoLugar).all():
+        leg = legajos_svc.legajo_de_internado(db, p)
+        if leg and str(leg.id) not in res and p.lugar:
+            res[str(leg.id)] = {
+                "lugar_id": p.lugar.id,
+                "lugar_nombre": p.lugar.nombre,
+                "lugar_tipo": p.lugar.tipo,
+            }
+    return res
+
+
 @router.get("/{legajo_id}", response_model=LegajoSchema)
 async def obtener(legajo_id: int, db: Session = Depends(get_db)):
     legajo = db.query(Legajo).filter(Legajo.id == legajo_id).first()

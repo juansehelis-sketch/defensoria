@@ -283,6 +283,7 @@ class Tarea(Base):
     detalle = Column(Text, nullable=True)
     fecha_limite = Column(Date, nullable=True)
     hecha = Column(Boolean, default=False)
+    notificada = Column(Boolean, default=False)  # ya se avisó al llegar la fecha
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
 

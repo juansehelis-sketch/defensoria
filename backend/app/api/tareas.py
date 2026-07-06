@@ -50,6 +50,9 @@ async def actualizar(tarea_id: int, datos: dict = Body(...), db: Session = Depen
     for campo in _EDITABLES:
         if campo in datos:
             setattr(tarea, campo, datos[campo])
+    # Si cambió la fecha, vuelve a avisar cuando llegue la fecha nueva.
+    if "fecha_limite" in datos:
+        tarea.notificada = False
     db.commit()
     db.refresh(tarea)
     return tarea

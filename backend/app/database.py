@@ -77,6 +77,8 @@ _COLUMNAS_EXTRA = [
     ("expedientes", "legajo_id", "INTEGER"),
     ("plantillas", "descripcion", "TEXT"),
     ("plantillas", "etiquetas", "VARCHAR"),
+    ("tareas", "notificada", "BOOLEAN DEFAULT FALSE"),
+    ("expedientes", "ficha", "TEXT"),
 ]
 
 

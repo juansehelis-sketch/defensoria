@@ -81,6 +81,36 @@ def asegurar_legajo(db, expediente):
     return legajo
 
 
+def _norm_nombre(s: str) -> str:
+    """Minúsculas, sin tildes ni espacios repetidos (para comparar nombres)."""
+    import unicodedata
+    s = " ".join((s or "").strip().lower().split())
+    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+
+
+def legajo_de_internado(db, internado):
+    """
+    Legajo que corresponde a una persona internada en una institución del mapa:
+    primero por su expediente vinculado; si no, por coincidencia de nombre.
+    """
+    from app.models import Legajo, Expediente
+
+    if internado.expediente_id:
+        exp = db.query(Expediente).filter(Expediente.id == internado.expediente_id).first()
+        if exp and exp.legajo_id:
+            leg = db.query(Legajo).filter(Legajo.id == exp.legajo_id).first()
+            if leg:
+                return leg
+
+    n = _norm_nombre(internado.nombre)
+    if len(n) >= 6:  # nombres muy cortos generan falsos positivos
+        for leg in db.query(Legajo).all():
+            ln = _norm_nombre(leg.nombre)
+            if ln and (ln == n or n in ln or ln in n):
+                return leg
+    return None
+
+
 def capturar_desde_observaciones(db, expediente, observaciones: str):
     """
     Si las observaciones detectan conexos, los suma (y el propio número) al

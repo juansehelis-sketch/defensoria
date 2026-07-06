@@ -375,6 +375,12 @@ function DetalleLugar({ lugar, onClose, onEditar, onBorrar, onCambio }) {
                     : <span style={{ color: 'var(--muted)' }}> (no está en el sistema)</span>}
                 </div>
               )}
+              {p.legajo_id && (
+                <div className="tl-meta" style={{ textTransform: 'none', letterSpacing: 0 }}>
+                  Legajo: {p.legajo_nombre}
+                  <button className="btn btn-ghost btn-sm" style={{ padding: '0 6px', marginLeft: 6 }} onClick={() => { onClose(); navigate(`/legajos?abrir=${p.legajo_id}`) }}>abrir</button>
+                </div>
+              )}
               {p.observaciones && <div className="tl-meta" style={{ textTransform: 'none', letterSpacing: 0 }}>{p.observaciones}</div>}
             </div>
             <button className="btn btn-ghost btn-sm" onClick={() => borrarGente(p.id)} title="Quitar"><Icono nombre="borrar" size={13} color="var(--red)" /></button>

@@ -15,9 +15,12 @@ export default function Legajos() {
   const [cargando, setCargando] = useState(true)
   const [nuevo, setNuevo] = useState(false)
   const [sel, setSel] = useState(null)
+  const [instituciones, setInstituciones] = useState({}) // legajo_id → institución del mapa
   const [params] = useSearchParams()
+  const navigate = useNavigate()
 
   useEffect(() => { const a = params.get('abrir'); if (a) setSel({ id: Number(a) }) }, [])
+  useEffect(() => { api('/api/legajos/instituciones').then(setInstituciones).catch(() => {}) }, [])
 
   async function cargar() {
     setCargando(true)
@@ -54,6 +57,14 @@ export default function Legajos() {
                     <Icono nombre="personas" size={15} color="var(--teal)" style={{ verticalAlign: '-2px', marginRight: 7 }} />{l.nombre}
                   </div>
                   <div className="tl-meta">{l.dni ? `DNI ${l.dni} · ` : ''}{(l.numeros || []).length} expediente(s)</div>
+                  {instituciones[String(l.id)] && (
+                    <button className="row" onClick={(e) => { e.stopPropagation(); navigate('/mapa') }}
+                      title="Ver la institución en el mapa"
+                      style={{ gap: 5, marginTop: 6, background: 'var(--teal-lt)', color: 'var(--teal)', border: 'none', borderRadius: 99, padding: '3px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <Icono nombre="mapa" size={12} color="var(--teal)" />
+                      Internado/a en: {instituciones[String(l.id)].lugar_nombre}
+                    </button>
+                  )}
                 </div>
                 <Icono nombre="abrir" size={16} color="var(--muted)" />
               </div>
