@@ -255,19 +255,20 @@ export default function Listado() {
       <div className="row" style={{ gap: 16, marginBottom: 8, fontSize: 12, color: 'var(--muted)' }}>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#fef3c7', border: '1px solid #e6d28a' }} /> Enviado a la firma</span>
         <span className="row" style={{ gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: '#dcfce7', border: '1px solid #a7e3bf' }} /> Subido / vista cancelada</span>
-        <span style={{ marginLeft: 'auto' }}>Click para editar · Tab/Enter para moverte · la flecha abre el expediente.</span>
+        <span style={{ marginLeft: 'auto' }}>Escribí en la última fila (vacía) para agregar · click edita · Tab/Enter para moverte · borrar tiene Deshacer.</span>
       </div>
 
       <div className="card">
         {cargando ? (
           <div className="loading-center"><span className="spin" /></div>
-        ) : registrosVista.length === 0 ? (
-          <div className="empty">{verTodas ? 'Sin resultados.' : 'No hay expedientes cargados este día.'}</div>
+        ) : registrosVista.length === 0 && busqueda.trim() ? (
+          <div className="empty">Sin resultados para esa búsqueda.</div>
         ) : (
           <TablaListado
             registros={registrosVista}
             despachantes={despachantes}
             mostrarFecha={verTodas}
+            fechaNueva={busqueda.trim() ? null : (verTodas ? isoLocal(new Date()) : diaISO)}
             onCambio={cargar}
             onAbrir={(eid) => navigate(`/expedientes/${eid}`)}
           />
