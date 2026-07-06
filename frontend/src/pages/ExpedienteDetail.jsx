@@ -15,6 +15,7 @@ import { claseEstado, fechaCorta, fechaHora, edadDesde, TIPOS_INTERVENCION } fro
 import ExpedienteForm from '../components/ExpedienteForm'
 import PreviewArchivo from '../components/PreviewArchivo'
 import ArmarDesdeExpediente from '../components/ArmarDesdeExpediente'
+import FichaExpediente from '../components/FichaExpediente'
 import Icono from '../components/Icono'
 
 export default function ExpedienteDetail() {
@@ -123,6 +124,9 @@ export default function ExpedienteDetail() {
 
       {/* Resumen editable */}
       <ResumenCard expediente={expediente} onGuardado={cargar} />
+
+      {/* Ficha Historia Social (editable en pantalla) */}
+      <FichaExpediente expedienteId={expediente.id} />
 
       {/* Defendidos + Datos en dos columnas */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }} className="dash-grid">

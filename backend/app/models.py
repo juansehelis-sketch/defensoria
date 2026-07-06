@@ -40,6 +40,7 @@ class Expediente(Base):
     legajo_id = Column(Integer, ForeignKey("legajos.id"), nullable=True, index=True)
     observaciones = Column(Text)
     resumen = Column(Text)  # Resumen libre del caso (lo mantienen los despachantes)
+    ficha = Column(Text, nullable=True)  # Ficha "Historia Social" (JSON editable en pantalla)
     fecha_creacion = Column(DateTime, default=datetime.now)
     fecha_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

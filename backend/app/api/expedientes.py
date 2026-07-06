@@ -2,11 +2,12 @@
 Endpoints de expedientes: ABM, búsqueda, upload PDF.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import date
 from pathlib import Path
+import json
 import re
 import shutil
 from app.database import get_db
@@ -138,6 +139,66 @@ async def obtener_expediente(expediente_id: int, db: Session = Depends(get_db)):
         )
 
     return expediente
+
+
+# ── Ficha "Historia Social" (editable en pantalla, sin descargar archivos) ──
+
+def _ficha_default() -> dict:
+    """Plantilla inicial de la ficha, con la estructura de la Historia Social."""
+    return {
+        "campos": [
+            {"etiqueta": "Fecha de inicio", "valor": ""},
+            {"etiqueta": "Tutor público", "valor": ""},
+        ],
+        "secciones": [
+            {"titulo": "Datos del niño/a", "tipo": "tabla",
+             "columnas": ["Apellido y Nombre", "Fecha de Nacimiento", "DNI", "Lugar de Alojamiento (actual)"],
+             "filas": []},
+            {"titulo": "Otros aspectos personales", "tipo": "tabla",
+             "columnas": ["Aspecto", "Institución / Profesional", "Observaciones", "Fecha del Registro"],
+             "filas": [["Aspecto Educativo", "", "", ""], ["Salud Mental", "", "", ""], ["Controles de Salud", "", "", ""]]},
+            {"titulo": "Familia y/o referentes afectivos", "tipo": "tabla",
+             "columnas": ["Apellido y Nombre", "Vínculo", "Fecha de Nacimiento", "Domicilio", "Observaciones"],
+             "filas": []},
+            {"titulo": "Medidas excepcionales", "tipo": "tabla",
+             "columnas": ["Tomada por", "Resolución N°", "Fecha", "Interviene DZ"],
+             "filas": []},
+            {"titulo": "Otras causas", "tipo": "tabla",
+             "columnas": ["Autos", "Juzgado N°", "Fecha de Inicio", "Observaciones"],
+             "filas": []},
+            {"titulo": "Situación problema – factores que inciden", "tipo": "texto", "texto": ""},
+            {"titulo": "Reseña de la problemática familiar", "tipo": "texto", "texto": ""},
+            {"titulo": "Seguimiento", "tipo": "entradas", "entradas": []},
+        ],
+    }
+
+
+@router.get("/{expediente_id}/ficha")
+async def obtener_ficha(expediente_id: int, db: Session = Depends(get_db)):
+    exp = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    if exp.ficha:
+        try:
+            return json.loads(exp.ficha)
+        except Exception:
+            pass
+    return _ficha_default()
+
+
+@router.put("/{expediente_id}/ficha")
+async def guardar_ficha(
+    expediente_id: int,
+    datos: dict = Body(...),
+    db: Session = Depends(get_db),
+    _u: Usuario = Depends(obtener_usuario_actual),
+):
+    exp = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    exp.ficha = json.dumps(datos, ensure_ascii=False)
+    db.commit()
+    return {"ok": True}
 
 
 @router.put("/{expediente_id}", response_model=ExpedienteSchema)
