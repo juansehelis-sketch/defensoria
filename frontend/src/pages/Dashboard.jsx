@@ -117,7 +117,7 @@ export default function Dashboard() {
           {pendientes.length === 0 ? (
             <div className="empty">No tenés expedientes pendientes de enviar.</div>
           ) : (
-            <TablaListado registros={pendientes} despachantes={despachantes} mostrarFecha mostrarUrgente onCambio={cargar} onAbrir={(eid) => navigate(`/expedientes/${eid}`)} />
+            <TablaListado registros={pendientes} despachantes={despachantes} mostrarFecha onCambio={cargar} onAbrir={(eid) => navigate(`/expedientes/${eid}`)} />
           )}
         </div>
       </div>

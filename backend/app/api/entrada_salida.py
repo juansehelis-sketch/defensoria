@@ -127,6 +127,14 @@ def _insertar_filas(db, filas):
         fecha = _a_fecha(f.get("fecha")) or date.today()
         asignacion = (f.get("asignacion") or "").strip() or None
 
+        # Si la carátula trae la palabra "urgente", se marca la fila como urgente
+        # y se saca esa palabra del texto de la carátula.
+        urgente = bool(f.get("urgente"))
+        if re.search(r"urgente", autos, re.IGNORECASE):
+            urgente = True
+            autos = re.sub(r"\burgente\b", " ", autos, flags=re.IGNORECASE)
+            autos = re.sub(r"\s{2,}", " ", autos).strip(" -–—:·,.")
+
         firma = _firma(fecha, numero, f.get("juzgado"), autos, asignacion)
         if firma in existentes:
             # Ya estaba: ver si el Excel trae fechas nuevas para actualizar.
@@ -164,7 +172,7 @@ def _insertar_filas(db, filas):
             fecha=fecha, juzgado=f.get("juzgado"), expediente_id=expediente_id, autos=autos,
             asignacion=asignacion, pase_firma=_a_fecha(f.get("pase_firma")),
             subido_lex=_a_fecha(f.get("subido_lex")), observaciones=f.get("observaciones"),
-            urgente=bool(f.get("urgente")),
+            urgente=urgente,
         )
         db.add(nueva)
         existentes[firma] = nueva  # por si la misma fila viene repetida en el archivo

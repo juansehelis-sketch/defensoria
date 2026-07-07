@@ -213,7 +213,12 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
               {mostrarFecha && <td className="mono"><Celda valor={r.fecha} tipo="date" render={fechaCorta} {...cp(r, 'fecha')} /></td>}
               <td className="mono" style={{ minWidth: 60 }}><Celda valor={r.juzgado} {...cp(r, 'juzgado')} /></td>
               <td className="mono">{r.numero_expediente || '—'}</td>
-              <td style={{ minWidth: 260 }}><Celda valor={r.autos} {...cp(r, 'autos')} /></td>
+              <td style={{ minWidth: 260 }}>
+                <div className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><Celda valor={r.autos} {...cp(r, 'autos')} /></div>
+                  {r.urgente && <span style={{ color: 'var(--red)', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>— URGENTE</span>}
+                </div>
+              </td>
               <td style={{ minWidth: 90 }}><Celda valor={r.asignacion} tipo="select" opciones={nombres} {...cp(r, 'asignacion')} /></td>
               <td className="mono" style={{ minWidth: 110 }}><Celda valor={r.pase_firma} tipo="date" render={fechaCorta} {...cp(r, 'pase_firma')} /></td>
               <td className="mono" style={{ minWidth: 110 }}><Celda valor={r.subido_lex} tipo="date" render={fechaCorta} {...cp(r, 'subido_lex')} /></td>
