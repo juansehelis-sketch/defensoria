@@ -178,6 +178,18 @@ def _insertar_filas(db, filas):
         existentes[firma] = nueva  # por si la misma fila viene repetida en el archivo
         creados += 1
 
+        # Si la fila es urgente y tiene asignación, avisar a esa persona en Inicio
+        # (igual que al cargar un expediente urgente a mano).
+        if urgente and asignacion:
+            asignado = db.query(Usuario).filter(Usuario.nombre == asignacion).first()
+            if asignado:
+                db.add(Notificacion(
+                    usuario_id=asignado.id,
+                    tipo="expediente_urgente",
+                    contenido=f"Se te asignó un expediente URGENTE: {numero or ''} — {autos[:80]}",
+                    expediente_id=expediente_id,
+                ))
+
     db.commit()
     return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos}
 
