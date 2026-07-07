@@ -7,6 +7,16 @@ import re
 import pdfplumber
 from typing import List, Tuple
 
+# Número de expediente en formato compacto (sin espacios ni puntos): NNN/AAAA[/n]
+_RE_NUM_COMPACTO = re.compile(r"^(?:CIV|COM|CNT|CSS)?0*(\d{3,7}/\d{4}(?:/\d+)*)", re.IGNORECASE)
+
+# Número de expediente en texto plano, tolerando puntos de miles y espacios:
+#   38226/2024 · 38.226/2024 · 0038226/2024 · CIV 38226 / 2024
+_RE_EXPTE_TEXTO = re.compile(
+    r"(?:CIV|COM|CNT|CSS)?\s*0*(?:\d{1,3}(?:[.\s]\d{3})+|\d{3,7})\s*/\s*\d{4}(?:\s*/\s*\d+)*",
+    re.IGNORECASE,
+)
+
 
 def extraer_texto_pdf(file_path: str) -> str:
     """Extrae texto de un PDF usando pdfplumber."""
@@ -75,8 +85,8 @@ def extraer_caratula(after_text: str) -> str:
     """
     txt = re.sub(r"\s+", " ", after_text[:700]).strip()
 
-    # Cortar antes del próximo número de expediente (NNN/AAAA)
-    sig = re.search(r"(?:CIV\s+)?\d{3,7}/\d{4}", txt)
+    # Cortar antes del próximo número de expediente (tolera puntos y espacios)
+    sig = _RE_EXPTE_TEXTO.search(txt)
     if sig and sig.start() > 10:
         txt = txt[:sig.start()]
 
@@ -109,13 +119,11 @@ def parsear_listado_de_pases(texto: str) -> List[dict]:
 
     juzgado = extraer_juzgado(texto)
 
-    # Buscar expedientes en cualquier formato: con o sin "CIV", con ceros a la
-    # izquierda, y con sufijos (/1, /2). Pedimos 3+ dígitos para no confundir
-    # con fechas (ej. 06/2026).
-    regex_expte = r"(?:CIV\s+)?0*(\d{3,7}\/\d{4}(?:\/\d+)*)"
-
-    for match in re.finditer(regex_expte, texto, re.IGNORECASE):
-        expte = normalizar_expediente(match.group(1))
+    # Buscar expedientes en muchos formatos: con o sin "CIV", con ceros a la
+    # izquierda, con puntos de miles ("38.226/2024") y espacios alrededor de la
+    # barra ("38226 / 2024"). El año de 4 dígitos evita confundir con fechas.
+    for match in _RE_EXPTE_TEXTO.finditer(texto):
+        expte = normalizar_expediente(match.group(0))
 
         if not expte or expte in vistos:
             continue
@@ -190,6 +198,38 @@ def _caratula_por_columnas(words: list, anchor: dict, next_top: float, ancho: fl
     return texto[:240]
 
 
+def _anchor_en_fila(fw: list, ancho: float):
+    """
+    Busca el número de expediente en una fila de palabras. Tolera que el número
+    venga partido en varias palabras ("38226" "/" "2024"), con puntos de miles o
+    ceros a la izquierda. Devuelve el ancla {numero, x0, x1, top} o None.
+    """
+    n = len(fw)
+    for i in range(n):
+        for j in range(i, min(i + 3, n)):
+            seg = "".join(w["text"] for w in fw[i:j + 1]).replace(".", "").replace(" ", "")
+            m = _RE_NUM_COMPACTO.match(seg)
+            if m:
+                x0 = fw[i]["x0"]
+                # Si el número aparece recién en la mitad derecha, es un conexo /
+                # una cita en observaciones, no el expediente de la fila.
+                if x0 > ancho * 0.6:
+                    return None
+                return {"numero": normalizar_expediente(m.group(1)), "x0": x0, "x1": fw[j]["x1"], "top": fw[i]["top"]}
+    return None
+
+
+def _agrupar_filas(words: list) -> list:
+    """Agrupa las palabras en filas por su coordenada vertical (top)."""
+    filas = []
+    for w in sorted(words, key=lambda w: (round(w["top"]), w["x0"])):
+        if filas and abs(w["top"] - filas[-1]["top"]) <= 3:
+            filas[-1]["ws"].append(w)
+        else:
+            filas.append({"top": w["top"], "ws": [w]})
+    return filas
+
+
 def parsear_pdf_con_posiciones(file_path: str) -> Tuple[List[dict], str]:
     """
     Parser principal: usa las coordenadas de cada palabra para separar bien las
@@ -212,18 +252,14 @@ def parsear_pdf_con_posiciones(file_path: str) -> Tuple[List[dict], str]:
             words.sort(key=lambda w: (round(w["top"]), w["x0"]))
             ancho = float(page.width or 600)
 
-            # Anclas: palabras-número en la columna izquierda (la del expediente),
-            # para no confundir con números de expedientes conexos en observaciones.
+            # Anclas: una por fila, buscando el número de expediente de la columna
+            # izquierda (tolerante a formatos y a números partidos en palabras).
             anchors = []
-            for w in words:
-                if w["x0"] > ancho * 0.5:
-                    continue
-                m = re.search(r"(\d{3,7}/\d{4}(?:/\d+)*)", w["text"])
-                if m:
-                    anchors.append({
-                        "top": w["top"], "x0": w["x0"], "x1": w["x1"],
-                        "numero": normalizar_expediente(m.group(1)),
-                    })
+            for fila in _agrupar_filas(words):
+                fila["ws"].sort(key=lambda w: w["x0"])
+                a = _anchor_en_fila(fila["ws"], ancho)
+                if a and a["numero"]:
+                    anchors.append(a)
             anchors.sort(key=lambda a: a["top"])
 
             for idx, a in enumerate(anchors):
