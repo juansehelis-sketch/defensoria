@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import Icono from '../components/Icono'
@@ -34,9 +35,9 @@ export default function Usuarios() {
     setEnviando(true)
     try {
       const r = await api('/api/reportes/resumen-diario', { method: 'POST' })
-      if (!r.configurado) alert('El correo todavía no está configurado (faltan los datos del servidor SMTP).')
-      else alert(`Resumen enviado a ${r.enviados} persona(s). Omitidos: ${r.omitidos}.`)
-    } catch (e) { alert(e.message) } finally { setEnviando(false) }
+      if (!r.configurado) avisar('El correo todavía no está configurado (faltan los datos del servidor SMTP).', 'info')
+      else avisar(`Resumen enviado a ${r.enviados} persona(s). Omitidos: ${r.omitidos}.`)
+    } catch (e) { avisar(e.message, 'error') } finally { setEnviando(false) }
   }
 
   async function actualizar(u, cambios) {
@@ -163,7 +164,7 @@ function FormReset({ usuario, onClose, onListo }) {
     setGuardando(true)
     try {
       await api(`/api/usuarios/${usuario.id}/password`, { method: 'POST', body: { contraseña: clave } })
-      alert(`Contraseña de ${usuario.nombre} actualizada.`)
+      avisar(`Contraseña de ${usuario.nombre} actualizada.`)
       onListo()
     } catch (e) { setError(e.message) } finally { setGuardando(false) }
   }
@@ -192,7 +193,7 @@ export function CambiarMiClave({ onClose }) {
     setGuardando(true)
     try {
       await api('/api/usuarios/me/password', { method: 'POST', body: { actual, nueva } })
-      alert('Tu contraseña fue cambiada.')
+      avisar('Tu contraseña fue cambiada.')
       onClose()
     } catch (e) { setError(e.message) } finally { setGuardando(false) }
   }

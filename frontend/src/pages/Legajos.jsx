@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import Modal from '../components/Modal'
 import Icono from '../components/Icono'
 
@@ -87,7 +88,7 @@ function NuevoLegajo({ onClose, onCreado }) {
     if (!nombre.trim()) return
     setG(true)
     try { onCreado(await api('/api/legajos/', { method: 'POST', body: { nombre: nombre.trim(), dni: dni || null, numeros: [] } })) }
-    catch (e) { alert(e.message) } finally { setG(false) }
+    catch (e) { avisar(e.message, 'error') } finally { setG(false) }
   }
   return (
     <Modal titulo="Nuevo legajo" onClose={onClose}
@@ -109,7 +110,7 @@ function LegajoDetalle({ legajoId, onClose, onCambio }) {
   async function guardar(campo, valor) { await api(`/api/legajos/${legajoId}`, { method: 'PUT', body: { [campo]: valor } }); onCambio?.() }
   async function agregarNum() { if (!nuevoNum.trim()) return; await api(`/api/legajos/${legajoId}/numeros`, { method: 'POST', body: { numero: nuevoNum.trim() } }); setNuevoNum(''); cargar(); onCambio?.() }
   async function quitarNum(n) { await api(`/api/legajos/${legajoId}/numeros/${encodeURIComponent(n)}`, { method: 'DELETE' }); cargar(); onCambio?.() }
-  async function eliminar() { if (!confirm('¿Eliminar este legajo? Los expedientes no se borran.')) return; await api(`/api/legajos/${legajoId}`, { method: 'DELETE' }); onClose(); onCambio?.() }
+  async function eliminar() { if (!(await confirmar({ mensaje: '¿Eliminar este legajo? Los expedientes no se borran.', ok: 'Eliminar', peligro: true }))) return; await api(`/api/legajos/${legajoId}`, { method: 'DELETE' }); onClose(); onCambio?.() }
 
   if (!l) return <Modal titulo="Legajo" onClose={onClose}><div className="loading-center"><span className="spin" /></div></Modal>
 

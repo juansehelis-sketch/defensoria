@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { api } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import Icono from '../components/Icono'
 import Modal from '../components/Modal'
 
@@ -120,7 +121,7 @@ export default function Mapa() {
     const c = await geocodificar(dir)
     setBuscando(false)
     if (c) mapa.current.setView([c.lat, c.lng], 16)
-    else alert('No se encontró esa dirección. Podés marcar el lugar a mano en el mapa.')
+    else avisar('No se encontró esa dirección. Podés marcar el lugar a mano en el mapa.', 'error')
   }
 
   function marcarAMano(datosForm) {
@@ -157,7 +158,7 @@ export default function Mapa() {
   }
 
   async function borrar(l) {
-    if (!confirm(`¿Eliminar "${l.nombre}" del mapa? (se borran también sus personas)`)) return
+    if (!(await confirmar({ mensaje: `¿Eliminar "${l.nombre}" del mapa? (se borran también sus personas)`, ok: 'Eliminar', peligro: true }))) return
     await api(`/api/mapa/lugares/${l.id}`, { method: 'DELETE' })
     cargar()
   }
@@ -338,7 +339,7 @@ function DetalleLugar({ lugar, onClose, onEditar, onBorrar, onCambio }) {
       await api(`/api/mapa/lugares/${lugar.id}/internados`, { method: 'POST', body: nuevo })
       setNuevo({ nombre: '', expediente_numero: '', observaciones: '' })
       cargarGente(); onCambio && onCambio()
-    } catch (e) { alert(e.message) } finally { setGuardando(false) }
+    } catch (e) { avisar(e.message, 'error') } finally { setGuardando(false) }
   }
   async function borrarGente(id) {
     await api(`/api/mapa/internados/${id}`, { method: 'DELETE' })

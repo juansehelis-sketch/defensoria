@@ -97,8 +97,12 @@ def _insertar_filas(db, filas):
         Si no hay nada nuevo, se saltea.
     Devuelve {creados, actualizados, omitidos}.
     """
+    import unicodedata
+
     def _norm(s):
-        return " ".join((s or "").strip().split()).lower()
+        # minúsculas, sin tildes, sin espacios de más → tolera diferencias mínimas
+        s = " ".join((s or "").strip().split()).lower()
+        return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 
     def _firma(fecha, numero, juzgado, autos, asignacion):
         return (fecha.isoformat() if fecha else "", _norm(numero), _norm(juzgado), _norm(autos), _norm(asignacion))

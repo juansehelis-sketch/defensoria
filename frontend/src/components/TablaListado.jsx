@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { api } from '../utils/api'
+import { avisar } from '../ui'
 import { fechaCorta, colorFila } from '../utils/format'
 import Icono from './Icono'
 
@@ -110,7 +111,7 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
     try {
       await api(`/api/entrada-salida/${id}`, { method: 'PUT', body: { [campo]: valor } })
       onCambio?.()
-    } catch (e) { alert('No se pudo guardar: ' + e.message) }
+    } catch (e) { avisar('No se pudo guardar: ' + e.message, 'error') }
   }
 
   // ── Borrar en un clic + Deshacer ─────────────────────────────
@@ -121,7 +122,7 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
       setBorrada(r)
       timerRef.current = setTimeout(() => setBorrada(null), 8000)
       onCambio?.()
-    } catch (e) { alert('No se pudo borrar: ' + e.message) }
+    } catch (e) { avisar('No se pudo borrar: ' + e.message, 'error') }
   }
 
   async function deshacer() {
@@ -140,7 +141,7 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
         },
       })
       onCambio?.()
-    } catch (e) { alert('No se pudo deshacer: ' + e.message) }
+    } catch (e) { avisar('No se pudo deshacer: ' + e.message, 'error') }
   }
 
   // ── Fila nueva (siempre vacía al final): escribir ahí crea la fila ──
@@ -176,7 +177,7 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
       const sig = NCOLS[NCOLS.indexOf(campo) + 1]
       const campoSig = sig === 'numero_expediente' ? 'autos' : sig
       setActiva(creado?.id && campoSig ? { fila: creado.id, campo: campoSig } : null)
-    } catch (e) { alert('No se pudo agregar la fila: ' + e.message) }
+    } catch (e) { avisar('No se pudo agregar la fila: ' + e.message, 'error') }
   }
 
   const cpN = (campo) => ({

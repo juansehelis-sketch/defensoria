@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, API_BASE, obtenerToken } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import Icono from '../components/Icono'
 import { fechaHora } from '../utils/format'
 
@@ -52,7 +53,7 @@ export default function Reportes() {
   async function hacerBackup() {
     setHaciendoBackup(true)
     try { await api('/api/reportes/backup', { method: 'POST' }); await cargarBackups() }
-    catch (e) { alert('No se pudo: ' + e.message) } finally { setHaciendoBackup(false) }
+    catch (e) { avisar('No se pudo: ' + e.message, 'error') } finally { setHaciendoBackup(false) }
   }
   function descargarBackup(nombre) {
     fetch(`${API_BASE}/api/reportes/backups/descargar/${encodeURIComponent(nombre)}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
@@ -62,9 +63,9 @@ export default function Reportes() {
       })
   }
   async function restaurarBackup(nombre) {
-    if (!confirm(`¿Restaurar la base desde "${nombre}"?\nSe reemplaza la base actual (se hace una copia de resguardo antes). Después reiniciá la app.`)) return
-    try { await api('/api/reportes/backups/restaurar', { method: 'POST', body: { nombre } }); alert('Restaurado. Cerrá y volvé a abrir la app para usar la copia restaurada.') }
-    catch (e) { alert('No se pudo: ' + e.message) }
+    if (!(await confirmar({ titulo: 'Restaurar copia', mensaje: `¿Restaurar la base desde "${nombre}"? Se reemplaza la base actual (se hace una copia de resguardo antes). Después reiniciá la app.`, ok: 'Restaurar', peligro: true }))) return
+    try { await api('/api/reportes/backups/restaurar', { method: 'POST', body: { nombre } }); avisar('Restaurado. Cerrá y volvé a abrir la app para usar la copia restaurada.') }
+    catch (e) { avisar('No se pudo: ' + e.message, 'error') }
   }
 
   async function cargarBase() {

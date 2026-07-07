@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, obtenerToken, API_BASE } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import Modal from '../components/Modal'
 import PreviewArchivo from '../components/PreviewArchivo'
 import Icono from '../components/Icono'
@@ -121,7 +122,7 @@ function Biblioteca({ conf, onVolver }) {
     setNombreCarpeta(''); setNuevaCarpeta(false); cargar()
   }
   async function eliminarCarpeta(id) {
-    if (!confirm('¿Eliminar esta carpeta y todo su contenido?')) return
+    if (!(await confirmar({ mensaje: '¿Eliminar esta carpeta y todo su contenido?', ok: 'Eliminar', peligro: true }))) return
     await api(`/api/modelos/carpetas/${id}`, { method: 'DELETE' }); cargar()
   }
 
@@ -248,7 +249,7 @@ function ModeloItem({ plantilla, conf, onCambio, carpetaNombre }) {
   const [editar, setEditar] = useState(false)
 
   async function eliminar() {
-    if (!confirm(`¿Eliminar “${plantilla.nombre}”?`)) return
+    if (!(await confirmar({ mensaje: `¿Eliminar “${plantilla.nombre}”?`, ok: 'Eliminar', peligro: true }))) return
     await api(`/api/modelos/plantillas/${plantilla.id}`, { method: 'DELETE' })
     onCambio()
   }
@@ -367,7 +368,7 @@ function EditarModelo({ plantilla, onClose, onGuardado }) {
       if (tieneTexto) body.contenido = contenido
       await api(`/api/modelos/plantillas/${plantilla.id}`, { method: 'PUT', body })
       onGuardado()
-    } catch (e) { alert(e.message) } finally { setGuardando(false) }
+    } catch (e) { avisar(e.message, 'error') } finally { setGuardando(false) }
   }
 
   return (

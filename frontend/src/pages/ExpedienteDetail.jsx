@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api, obtenerToken, API_BASE, urlArchivo } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import { useAuth } from '../context/AuthContext'
 import { claseEstado, fechaCorta, fechaHora, edadDesde, TIPOS_INTERVENCION } from '../utils/format'
 import ExpedienteForm from '../components/ExpedienteForm'
@@ -56,12 +57,12 @@ export default function ExpedienteDetail() {
   useEffect(() => { cargar() }, [id])
 
   async function cancelarVista() {
-    if (!confirm('¿Cancelar la vista de este expediente?\nSe va a marcar en verde y se anotará en observaciones.')) return
+    if (!(await confirmar({ mensaje: '¿Cancelar la vista de este expediente? Se va a marcar en verde y se anotará en observaciones.', ok: 'Cancelar vista' }))) return
     try {
       await api(`/api/expedientes/${id}/cancelar-vista`, { method: 'POST' })
       await cargar()
-      alert('Vista cancelada.')
-    } catch (e) { alert(e.message) }
+      avisar('Vista cancelada.')
+    } catch (e) { avisar(e.message, 'error') }
   }
 
   async function abrirLegajo() {
@@ -69,7 +70,7 @@ export default function ExpedienteDetail() {
     try {
       const l = await api('/api/legajos/desde-expediente', { method: 'POST', body: { expediente_id: Number(id) } })
       navigate(`/legajos?abrir=${l.id}`)
-    } catch (e) { alert(e.message) }
+    } catch (e) { avisar(e.message, 'error') }
   }
 
   if (cargando) return <div className="loading-center"><span className="spin" /></div>
@@ -180,7 +181,7 @@ function ResumenCard({ expediente, onGuardado }) {
     try {
       await api(`/api/expedientes/${expediente.id}`, { method: 'PUT', body: { resumen: texto } })
       onGuardado()
-    } catch (e) { alert(e.message) } finally { setGuardando(false) }
+    } catch (e) { avisar(e.message, 'error') } finally { setGuardando(false) }
   }
 
   return (
@@ -224,11 +225,11 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
       setForm({ nombre: '', fecha_nacimiento: '', vinculo: '', observaciones: '' })
       setMostrarForm(false)
       onCambio()
-    } catch (e) { alert(e.message) } finally { setAgregando(false) }
+    } catch (e) { avisar(e.message, 'error') } finally { setAgregando(false) }
   }
 
   async function eliminar(did) {
-    if (!confirm('¿Eliminar este defendido?')) return
+    if (!(await confirmar({ mensaje: '¿Eliminar este defendido?', ok: 'Eliminar', peligro: true }))) return
     await api(`/api/expedientes/defendidos/${did}`, { method: 'DELETE' })
     onCambio()
   }

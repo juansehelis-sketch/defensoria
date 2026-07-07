@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../utils/api'
+import { confirmar } from '../ui'
 import Icono from './Icono'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -61,10 +62,10 @@ export default function FichaExpediente({ expedienteId }) {
   function quitarCampo(i) {
     setFicha((f) => ({ ...f, campos: f.campos.filter((_, ci) => ci !== i) }))
   }
-  function agregarSeccion() {
+  async function agregarSeccion() {
     const nombre = window.prompt('Título de la sección nueva:', '')
     if (nombre === null || !nombre.trim()) return
-    const tipo = window.confirm('¿La sección nueva es una TABLA?\n(Aceptar = tabla · Cancelar = texto libre)') ? 'tabla' : 'texto'
+    const tipo = (await confirmar({ titulo: 'Tipo de sección', mensaje: '¿La sección nueva es una TABLA?', ok: 'Tabla', cancelar: 'Texto libre' })) ? 'tabla' : 'texto'
     let sec
     if (tipo === 'tabla') {
       const cols = window.prompt('Nombres de las columnas, separados por coma:', 'Dato, Observaciones')
@@ -77,8 +78,8 @@ export default function FichaExpediente({ expedienteId }) {
     }
     setFicha((f) => ({ ...f, secciones: [...f.secciones, sec] }))
   }
-  function quitarSeccion(i) {
-    if (!confirm(`¿Eliminar la sección "${ficha.secciones[i].titulo}" y su contenido?`)) return
+  async function quitarSeccion(i) {
+    if (!(await confirmar({ mensaje: `¿Eliminar la sección "${ficha.secciones[i].titulo}" y su contenido?`, ok: 'Eliminar', peligro: true }))) return
     setFicha((f) => ({ ...f, secciones: f.secciones.filter((_, si) => si !== i) }))
   }
 
@@ -184,7 +185,7 @@ function TablaSec({ sec, onCambio }) {
 function Entradas({ sec, onCambio }) {
   const entradas = sec.entradas || []
   const setEntrada = (i, k, v) => onCambio({ entradas: entradas.map((e, ei) => ei === i ? { ...e, [k]: v } : e) })
-  const quitar = (i) => { if (confirm('¿Eliminar esta entrada del seguimiento?')) onCambio({ entradas: entradas.filter((_, ei) => ei !== i) }) }
+  const quitar = async (i) => { if (await confirmar({ mensaje: '¿Eliminar esta entrada del seguimiento?', ok: 'Eliminar', peligro: true })) onCambio({ entradas: entradas.filter((_, ei) => ei !== i) }) }
   function agregar() {
     const hoy = new Date()
     onCambio({ entradas: [...entradas, { titulo: `${MESES[hoy.getMonth()]} ${hoy.getFullYear()}`, texto: '' }] })

@@ -10,6 +10,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { api, urlArchivo } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import { useAuth } from '../context/AuthContext'
 import { diaLargo } from '../utils/format'
 import Icono from '../components/Icono'
@@ -284,7 +285,7 @@ function AdjuntosAudiencia({ audiencia, onClose }) {
   }
 
   async function borrar(id) {
-    if (!confirm('¿Eliminar este archivo?')) return
+    if (!(await confirmar({ mensaje: '¿Eliminar este archivo?', ok: 'Eliminar', peligro: true }))) return
     await api(`/api/audiencias/adjuntos/${id}`, { method: 'DELETE' })
     cargar()
   }
@@ -395,7 +396,7 @@ function MiAgenda() {
 
   async function marcar(id, asistencia) {
     try { await api(`/api/audiencias/${id}`, { method: 'PUT', body: { asistencia } }); cargar() }
-    catch (e) { alert(e.message) }
+    catch (e) { avisar(e.message, 'error') }
   }
 
   if (cargando) return <div className="loading-center"><span className="spin" /></div>

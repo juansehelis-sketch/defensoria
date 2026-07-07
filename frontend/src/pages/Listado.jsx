@@ -10,6 +10,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, obtenerToken, API_BASE } from '../utils/api'
+import { confirmar, avisar } from '../ui'
 import { useAuth } from '../context/AuthContext'
 import { isoLocal, diaLargo, fechaCorta, fechaHora } from '../utils/format'
 import Modal from '../components/Modal'
@@ -134,7 +135,7 @@ export default function Listado() {
       const d = new Date(dia); let i = 0
       do { d.setDate(d.getDate() + 1); i++ } while ((d.getDay() === 0 || d.getDay() === 6 || s.has(isoLocal(d))) && i < 400)
       setDia(d)
-    } catch (e) { alert('No se pudo ocultar el día: ' + e.message) }
+    } catch (e) { avisar('No se pudo ocultar el día: ' + e.message, 'error') }
   }
 
   function filtrarMios() {
@@ -158,7 +159,7 @@ export default function Listado() {
       document.body.appendChild(a); a.click(); a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert('Error al exportar: ' + e.message)
+      avisar('Error al exportar: ' + e.message, 'error')
     } finally {
       setExportando(false)
     }
@@ -288,7 +289,7 @@ export default function Listado() {
             const partes = [`${r.creados ?? r} fila(s) nueva(s)`]
             if (r.actualizados) partes.push(`${r.actualizados} actualizada(s) con fechas de firma/subido`)
             if (r.omitidos) partes.push(`${r.omitidos} sin cambios`)
-            alert(partes.join(' · '))
+            avisar(partes.join(' · '))
           }} />
       )}
       {mostrarPapelera && <Papelera onClose={() => setMostrarPapelera(false)} />}

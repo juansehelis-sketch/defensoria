@@ -16,6 +16,7 @@ import Modelos from './pages/Modelos'
 import Legajos from './pages/Legajos'
 import Usuarios from './pages/Usuarios'
 import Mapa from './pages/Mapa'
+import { UIHost } from './ui'
 
 function RutaProtegida({ children }) {
   const { usuario, cargando } = useAuth()
@@ -30,6 +31,7 @@ export default function App() {
   const { usuario, cargando } = useAuth()
 
   return (
+    <>
     <Routes>
       <Route
         path="/login"
@@ -52,5 +54,7 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <UIHost />
+    </>
   )
 }
