@@ -19,6 +19,7 @@ class UsuarioBase(BaseModel):
     email: str
     nombre: str
     rol: str = "despachante"
+    cargo: Optional[str] = None
 
 
 class UsuarioCreate(UsuarioBase):
@@ -28,12 +29,14 @@ class UsuarioCreate(UsuarioBase):
 class UsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
     rol: Optional[str] = None
+    cargo: Optional[str] = None
     activo: Optional[bool] = None
 
 
 class Usuario(UsuarioBase):
     id: int
     activo: bool
+    debe_cambiar_clave: bool = False
     fecha_creacion: datetime
 
     class Config:
@@ -173,6 +176,7 @@ class AudienciaBase(BaseModel):
     datos_acceso: Optional[str] = None
     direccion: Optional[str] = None
     asesor: Optional[str] = None
+    despachante: Optional[str] = None
     asignado_a: Optional[str] = None
     asistencia: str = "pendiente"
     estado: str = "programada"

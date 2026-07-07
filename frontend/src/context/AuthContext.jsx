@@ -48,8 +48,14 @@ export function AuthProvider({ children }) {
     window.location.href = '/login'
   }
 
+  // Vuelve a pedir el perfil (ej: después de cambiar la contraseña obligatoria,
+  // para que la app detecte que ya no está pendiente y deje pasar).
+  async function refrescarUsuario() {
+    try { setUsuario(await api('/api/usuarios/me')) } catch { /* se mantiene el actual */ }
+  }
+
   return (
-    <AuthContext.Provider value={{ usuario, cargando, login, logout }}>
+    <AuthContext.Provider value={{ usuario, cargando, login, logout, refrescarUsuario }}>
       {children}
     </AuthContext.Provider>
   )

@@ -6,6 +6,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import ClaveNueva from './pages/ClaveNueva'
 import Dashboard from './pages/Dashboard'
 import Listado from './pages/Listado'
 import ExpedienteDetail from './pages/ExpedienteDetail'
@@ -24,6 +25,9 @@ function RutaProtegida({ children }) {
     return <div className="loading-center"><span className="spin" /></div>
   }
   if (!usuario) return <Navigate to="/login" replace />
+  // Contraseña reiniciada por el administrador: obligar a elegir una nueva
+  // antes de mostrar cualquier pantalla.
+  if (usuario.debe_cambiar_clave) return <ClaveNueva />
   return children
 }
 

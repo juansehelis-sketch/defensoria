@@ -108,12 +108,15 @@ async def startup_event():
     # Auto-seed: en un despliegue nuevo (base vacía) crea los usuarios solo,
     # así no hace falta consola para sembrarlos.
     from app.database import SessionLocal
-    from app.seed_data import crear_roster_si_vacio
+    from app.seed_data import crear_roster_si_vacio, migrar_roster_mpd
     db = SessionLocal()
     try:
         n = crear_roster_si_vacio(db)
         if n:
             print(f"[OK] Roster inicial creado: {n} usuarios")
+        m = migrar_roster_mpd(db)
+        if m:
+            print(f"[OK] Usuarios migrados a mails @mpd.gov.ar: {m}")
     except Exception as e:
         print(f"[!] No se pudo crear el roster inicial: {e}")
     finally:

@@ -79,6 +79,9 @@ _COLUMNAS_EXTRA = [
     ("plantillas", "etiquetas", "VARCHAR"),
     ("tareas", "notificada", "BOOLEAN DEFAULT FALSE"),
     ("expedientes", "ficha", "TEXT"),
+    ("usuarios", "cargo", "VARCHAR"),
+    ("usuarios", "debe_cambiar_clave", "BOOLEAN DEFAULT FALSE"),
+    ("audiencias", "despachante", "VARCHAR"),
 ]
 
 

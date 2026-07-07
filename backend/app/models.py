@@ -17,6 +17,11 @@ class Usuario(Base):
     contraseña_hash = Column(String)
     # Roles: despachante, secretaria, defensora (admin queda para gestión interna)
     rol = Column(String, default="despachante")
+    # Cargo formal (prosecretaria, jefa de despacho, oficial, escribiente,
+    # servicio social, etc.). Solo informativo, no cambia permisos.
+    cargo = Column(String, nullable=True)
+    # Si está en True, al próximo ingreso la app obliga a elegir contraseña nueva.
+    debe_cambiar_clave = Column(Boolean, default=False)
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
 
@@ -115,7 +120,8 @@ class Audiencia(Base):
     datos_acceso = Column(Text, nullable=True)     # link/datos (si es virtual)
     direccion = Column(String, nullable=True)      # dirección (si es presencial)
     asesor = Column(String, nullable=True)
-    asignado_a = Column(String, nullable=True, index=True)   # quién va (Stella/Brenda/Laura/Silvana)
+    despachante = Column(String, nullable=True)              # quién lleva el expediente
+    asignado_a = Column(String, nullable=True, index=True)   # quién va (defensora/secretarias/servicio social); opcional, se puede cargar después
     asistencia = Column(String, default="pendiente")         # pendiente / va / no_va
     estado = Column(String, default="programada")  # programada, realizada, cancelada
     fecha_creacion = Column(DateTime, default=datetime.now)

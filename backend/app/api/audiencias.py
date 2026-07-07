@@ -68,6 +68,7 @@ async def crear_audiencia(audiencia: AudienciaCreate, db: Session = Depends(get_
         datos_acceso=audiencia.datos_acceso,
         direccion=audiencia.direccion,
         asesor=audiencia.asesor,
+        despachante=audiencia.despachante,
         asignado_a=audiencia.asignado_a,
         asistencia=audiencia.asistencia or "pendiente",
         estado=audiencia.estado,

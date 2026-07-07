@@ -68,6 +68,7 @@ async def registrar(
         email=usuario_create.email,
         nombre=usuario_create.nombre,
         rol=usuario_create.rol,
+        cargo=(usuario_create.cargo or "").strip() or None,
         contraseña_hash=hashear_contraseña(usuario_create.contraseña),
     )
 
@@ -79,10 +80,15 @@ async def registrar(
 
 
 @router.get("/", response_model=list[UsuarioSchema])
-async def listar_usuarios(todos: bool = False, db: Session = Depends(get_db)):
+async def listar_usuarios(
+    todos: bool = False,
+    db: Session = Depends(get_db),
+    _u: Usuario = Depends(obtener_usuario_actual),
+):
     """
-    Lista usuarios. Por defecto solo los activos (para los selectores de
-    asignación). Con ?todos=true trae también los desactivados (para el panel).
+    Lista usuarios (requiere login). Por defecto solo los activos (para los
+    selectores de asignación). Con ?todos=true trae también los desactivados
+    (para el panel).
     """
     q = db.query(Usuario)
     if not todos:
@@ -111,8 +117,50 @@ async def cambiar_mi_password(
     if len(nueva) < 4:
         raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 4 caracteres.")
     actual.contraseña_hash = hashear_contraseña(nueva)
+    actual.debe_cambiar_clave = False
     db.commit()
     return {"ok": True}
+
+
+@router.post("/me/clave-inicial")
+async def elegir_clave_inicial(
+    datos: dict = Body(...),
+    db: Session = Depends(get_db),
+    actual: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Primer ingreso después de un reinicio de claves: la persona ya entró con su
+    contraseña vieja y acá elige la nueva (sin repetir la vieja). Solo funciona
+    si está marcada para cambiar la contraseña.
+    """
+    if not actual.debe_cambiar_clave:
+        raise HTTPException(status_code=400, detail="Tu contraseña no está pendiente de cambio.")
+    nueva = (datos.get("nueva") or "").strip()
+    if len(nueva) < 4:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres.")
+    actual.contraseña_hash = hashear_contraseña(nueva)
+    actual.debe_cambiar_clave = False
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/reiniciar-claves")
+async def reiniciar_todas_las_claves(
+    db: Session = Depends(get_db),
+    actual: Usuario = Depends(requerir_rol(*ADMIN_USUARIOS)),
+):
+    """
+    Marca a todos los usuarios activos (salvo quien aprieta el botón) para que
+    elijan contraseña nueva: entran una vez más con la clave actual y la app
+    les pide cambiarla antes de seguir. Pensado para el estreno del sistema.
+    """
+    n = (
+        db.query(Usuario)
+        .filter(Usuario.activo == True, Usuario.id != actual.id)
+        .update({"debe_cambiar_clave": True}, synchronize_session=False)
+    )
+    db.commit()
+    return {"ok": True, "marcados": n}
 
 
 @router.put("/{usuario_id}", response_model=UsuarioSchema)
@@ -130,6 +178,8 @@ async def actualizar_usuario(
         u.nombre = datos.nombre.strip()
     if datos.rol is not None:
         u.rol = datos.rol
+    if datos.cargo is not None:
+        u.cargo = datos.cargo.strip() or None
     if datos.activo is not None:
         if u.id == actual.id and not datos.activo:
             raise HTTPException(status_code=400, detail="No podés desactivar tu propia cuenta.")
@@ -154,14 +204,20 @@ async def resetear_password(
     if len(nueva) < 4:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres.")
     u.contraseña_hash = hashear_contraseña(nueva)
+    # La persona entra con esta clave provisoria y la app le pide elegir una propia.
+    u.debe_cambiar_clave = True
     db.commit()
     return {"ok": True}
 
 
 @router.get("/{usuario_id}", response_model=UsuarioSchema)
-async def obtener_usuario(usuario_id: int, db: Session = Depends(get_db)):
+async def obtener_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    _u: Usuario = Depends(obtener_usuario_actual),
+):
     """
-    Obtiene un usuario específico por ID.
+    Obtiene un usuario específico por ID (requiere login).
     """
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
 

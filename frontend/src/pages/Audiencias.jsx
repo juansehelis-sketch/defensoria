@@ -19,6 +19,30 @@ import Modal from '../components/Modal'
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
+// ── Colores según quién va a la audiencia ──────────────────────
+// Stella en rojo, un color por secretaria y uno compartido para las chicas de
+// servicio social (Julia y Catalina). Sin asignar queda gris.
+const COLORES_QUIEN_VA = {
+  stella: '#dc2626',    // defensora — rojo
+  silvana: '#2563eb',   // secretaria — azul
+  brenda: '#16a34a',    // secretaria — verde
+  laura: '#7c3aed',     // secretaria — violeta
+  julia: '#ea580c',     // servicio social — naranja
+  catalina: '#ea580c',  // servicio social — naranja
+}
+
+function colorQuienVa(nombre) {
+  if (!nombre || !String(nombre).trim()) return '#9ca3af' // sin asignar — gris
+  const clave = String(nombre).trim().toLowerCase().split(/\s+/)[0]
+  return COLORES_QUIEN_VA[clave] || 'var(--navy)'
+}
+
+// Quiénes pueden ir a una audiencia: la defensora, las secretarias y las
+// chicas de servicio social (rol despachante pero con ese cargo).
+function puedeIrAAudiencia(u) {
+  return u.rol === 'defensora' || u.rol === 'secretaria' || (u.cargo || '').toLowerCase().includes('servicio social')
+}
+
 // ── Agregar audiencia al calendario personal (Google / cualquiera) ──
 // Se arma el evento a partir de fecha + hora; dura 1 hora. Buenos Aires es
 // UTC-3 fijo (sin horario de verano), así que el pasaje a UTC es directo.
@@ -31,7 +55,7 @@ function _eventoDe(a) {
   const utcMs = Date.UTC(y, m - 1, d, (h || 9) + 3, mi || 0)      // ART (-3) → UTC
   const text = `${a.motivo || 'Audiencia'}${a.juzgado ? ' — Juzgado ' + a.juzgado : ''}${a.numero_expediente ? ' · Expte ' + a.numero_expediente : ''}`
   const location = a.modalidad === 'Virtual' ? (a.datos_acceso || 'Virtual') : (a.direccion || (a.juzgado ? `Juzgado ${a.juzgado}` : ''))
-  const details = [a.motivo && `Motivo: ${a.motivo}`, a.juzgado && `Juzgado: ${a.juzgado}`, a.modalidad && `Modalidad: ${a.modalidad}`, a.asignado_a && `Va: ${a.asignado_a}`].filter(Boolean).join('\n')
+  const details = [a.motivo && `Motivo: ${a.motivo}`, a.juzgado && `Juzgado: ${a.juzgado}`, a.modalidad && `Modalidad: ${a.modalidad}`, a.despachante && `Lleva el expediente: ${a.despachante}`, a.asignado_a && `Va: ${a.asignado_a}`].filter(Boolean).join('\n')
   return {
     text: text.trim(), location, details,
     naive: `${stamp(naiveMs)}/${stamp(naiveMs + 3600000)}`,
@@ -82,6 +106,10 @@ export default function Audiencias() {
   const [mostrarImport, setMostrarImport] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [adjAud, setAdjAud] = useState(null) // audiencia cuyos archivos se ven
+  const [equipo, setEquipo] = useState([])
+
+  useEffect(() => { api('/api/usuarios/').then(setEquipo).catch(() => {}) }, [])
+  const responsables = useMemo(() => equipo.filter(puedeIrAAudiencia), [equipo])
 
   async function cargar() {
     setCargando(true)
@@ -137,6 +165,15 @@ export default function Audiencias() {
 
   const audienciasDiaSel = diaSel ? (porDia[diaSel] || []) : []
 
+  // Cambiar (o poner por primera vez) quién va a una audiencia ya creada.
+  // Al reasignar, la confirmación de asistencia vuelve a "pendiente".
+  async function asignarQuienVa(a, nombre) {
+    try {
+      await api(`/api/audiencias/${a.id}`, { method: 'PUT', body: { asignado_a: nombre, asistencia: 'pendiente' } })
+      cargar()
+    } catch (e) { avisar(e.message, 'error') }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -160,10 +197,24 @@ export default function Audiencias() {
 
       {vista === 'calendario' && (<>
       {/* Navegación de mes */}
-      <div className="row" style={{ marginBottom: 14, justifyContent: 'center' }}>
+      <div className="row" style={{ marginBottom: 8, justifyContent: 'center' }}>
         <button className="btn btn-ghost btn-sm" onClick={() => cambiarMes(-1)}>←</button>
         <strong style={{ minWidth: 180, textAlign: 'center' }}>{MESES[mes]} {anio}</strong>
         <button className="btn btn-ghost btn-sm" onClick={() => cambiarMes(1)}>→</button>
+      </div>
+
+      {/* Referencias de color: cada audiencia se pinta según quién va */}
+      <div className="row" style={{ marginBottom: 14, justifyContent: 'center', flexWrap: 'wrap', gap: 12, fontSize: 12, color: 'var(--muted)' }}>
+        {responsables.map((r) => (
+          <span key={r.id} className="row" style={{ gap: 5 }}>
+            <span style={{ width: 11, height: 11, borderRadius: 99, background: colorQuienVa(r.nombre) }} />
+            {r.nombre}
+          </span>
+        ))}
+        <span className="row" style={{ gap: 5 }}>
+          <span style={{ width: 11, height: 11, borderRadius: 99, background: '#9ca3af' }} />
+          Sin asignar
+        </span>
       </div>
 
       <div className="card">
@@ -194,8 +245,8 @@ export default function Audiencias() {
                       <>
                         <div style={{ fontSize: 12, fontWeight: 600, color: esHoy ? 'var(--teal)' : 'var(--text)' }}>{d}</div>
                         {items.slice(0, 2).map((a) => (
-                          <div key={a.id} style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: 'var(--navy)', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                            title={`${String(a.hora).slice(0, 5)} · ${a.motivo || ''}`}>
+                          <div key={a.id} style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: colorQuienVa(a.asignado_a), color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={`${String(a.hora).slice(0, 5)} · ${a.motivo || ''}${a.asignado_a ? ' · Va: ' + a.asignado_a : ' · Sin asignar'}`}>
                             <b>{String(a.hora).slice(0, 5)}</b> {a.motivo || a.base_legal || `J${a.juzgado}`}
                           </div>
                         ))}
@@ -223,7 +274,7 @@ export default function Audiencias() {
             ) : (
               <div className="table-scroll">
                 <table className="data">
-                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>¿Quién va?</th><th>Estado</th><th>Archivos</th><th>Agenda</th></tr></thead>
+                  <thead><tr><th>Hora</th><th>Motivo</th><th>Juzgado</th><th>Modalidad</th><th>Acceso / Dirección</th><th>Despachante</th><th>¿Quién va?</th><th>Estado</th><th>Archivos</th><th>Agenda</th></tr></thead>
                   <tbody>
                     {audienciasDiaSel.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).map((a) => (
                       <tr key={a.id} style={{ cursor: 'default' }}>
@@ -232,7 +283,19 @@ export default function Audiencias() {
                         <td className="mono">{a.juzgado}</td>
                         <td>{a.modalidad === 'Virtual' ? <><Icono nombre="virtual" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Virtual</> : a.modalidad === 'Presencial' ? <><Icono nombre="presencial" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Presencial</> : (a.modalidad || '—')}</td>
                         <td className="muted" style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{a.modalidad === 'Virtual' ? (a.datos_acceso || '—') : (a.direccion || '—')}</td>
-                        <td>{a.asignado_a || a.asesor || '—'}</td>
+                        <td>{a.despachante || '—'}</td>
+                        <td>
+                          <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                            <span style={{ width: 10, height: 10, borderRadius: 99, background: colorQuienVa(a.asignado_a), flexShrink: 0 }} />
+                            <select value={a.asignado_a || ''} onChange={(e) => asignarQuienVa(a, e.target.value)}
+                              title="Se puede asignar o cambiar en cualquier momento"
+                              style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
+                              <option value="">Sin asignar</option>
+                              {responsables.map((r) => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+                              {a.asignado_a && !responsables.some((r) => r.nombre === a.asignado_a) && <option value={a.asignado_a}>{a.asignado_a}</option>}
+                            </select>
+                          </div>
+                        </td>
                         <td><span className="badge badge-activo">{a.estado}</span></td>
                         <td><button className="btn btn-ghost btn-sm" onClick={() => setAdjAud(a)} title="Ver/agregar archivos (acta del juzgado, etc.)"><Icono nombre="clip" size={14} /> Archivos</button></td>
                         <td><BotonesCalendario a={a} /></td>
@@ -458,21 +521,22 @@ function MiAgenda() {
 // ── Alta manual ────────────────────────────────────────────────
 function FormAudiencia({ onClose, onGuardado }) {
   const [expedientes, setExpedientes] = useState([])
-  const [responsables, setResponsables] = useState([])
+  const [equipo, setEquipo] = useState([])
   const [form, setForm] = useState({
     expediente_id: '', fecha: new Date().toISOString().split('T')[0], hora: '09:00',
-    juzgado: '', motivo: '', modalidad: 'Presencial', datos_acceso: '', direccion: '', asignado_a: '',
+    juzgado: '', motivo: '', modalidad: 'Presencial', datos_acceso: '', direccion: '', despachante: '', asignado_a: '',
   })
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     api('/api/expedientes/', { params: { limit: 500 } }).then(setExpedientes).catch(() => {})
-    // Quién puede ir: defensora + secretarias
-    api('/api/usuarios/').then((us) => {
-      setResponsables(us.filter((u) => u.rol === 'defensora' || u.rol === 'secretaria'))
-    }).catch(() => {})
+    api('/api/usuarios/').then(setEquipo).catch(() => {})
   }, [])
+
+  // Quién puede ir: defensora + secretarias + servicio social.
+  const responsables = equipo.filter(puedeIrAAudiencia)
+  const despachantes = equipo.filter((u) => u.rol === 'despachante')
 
   function set(c, v) { setForm((f) => ({ ...f, [c]: v })) }
 
@@ -518,6 +582,8 @@ function FormAudiencia({ onClose, onGuardado }) {
           const exp = expedientes.find((x) => String(x.id) === e.target.value)
           set('expediente_id', e.target.value)
           if (exp && !form.juzgado) set('juzgado', exp.juzgado)
+          // Si el expediente ya tiene despachante asignado, se completa solo.
+          if (exp?.despachante_asignado && !form.despachante) set('despachante', exp.despachante_asignado)
         }}>
           <option value="">— Elegir expediente —</option>
           {expedientes.map((x) => <option key={x.id} value={x.id}>{x.numero} · {x.caratula?.slice(0, 60)}</option>)}
@@ -551,12 +617,22 @@ function FormAudiencia({ onClose, onGuardado }) {
         </div>
       )}
 
-      <div className="field" style={{ marginBottom: 0 }}>
-        <label>¿Quién va? *</label>
-        <select value={form.asignado_a} onChange={(e) => set('asignado_a', e.target.value)}>
-          <option value="">— Elegir —</option>
-          {responsables.map((r) => <option key={r.id} value={r.nombre}>{r.nombre} ({r.rol})</option>)}
-        </select>
+      <div className="field-row">
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Despachante (quién lleva el expediente)</label>
+          <select value={form.despachante} onChange={(e) => set('despachante', e.target.value)}>
+            <option value="">— Elegir —</option>
+            {despachantes.map((r) => <option key={r.id} value={r.nombre}>{r.nombre}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
+            {form.despachante && !despachantes.some((r) => r.nombre === form.despachante) && <option value={form.despachante}>{form.despachante}</option>}
+          </select>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>¿Quién va? (se puede cargar después)</label>
+          <select value={form.asignado_a} onChange={(e) => set('asignado_a', e.target.value)}>
+            <option value="">— Después se define —</option>
+            {responsables.map((r) => <option key={r.id} value={r.nombre}>{r.nombre} ({r.cargo || r.rol})</option>)}
+          </select>
+        </div>
       </div>
     </Modal>
   )

@@ -46,6 +46,21 @@ export default function Usuarios() {
     catch (e) { setError(e.message); cargar() }
   }
 
+  async function reiniciarClaves() {
+    const ok = await confirmar({
+      titulo: 'Reiniciar todas las contraseñas',
+      mensaje: 'Cada persona va a entrar una vez más con su contraseña actual, y la app le va a pedir que elija una nueva antes de seguir. Tu propia contraseña no cambia. ¿Continuar?',
+      ok: 'Reiniciar',
+      peligro: true,
+    })
+    if (!ok) return
+    try {
+      const r = await api('/api/usuarios/reiniciar-claves', { method: 'POST' })
+      avisar(`Listo: ${r.marcados} persona(s) van a elegir contraseña nueva la próxima vez que entren.`)
+      cargar()
+    } catch (e) { avisar(e.message, 'error') }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -64,13 +79,24 @@ export default function Usuarios() {
         ) : (
           <table className="data">
             <thead>
-              <tr><th>Nombre</th><th>Email (usuario)</th><th>Rol</th><th>Estado</th><th></th></tr>
+              <tr><th>Nombre</th><th>Email (usuario)</th><th>Cargo</th><th>Rol</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
               {usuarios.map((u) => (
                 <tr key={u.id} style={{ cursor: 'default', opacity: u.activo ? 1 : 0.55 }}>
                   <td>{u.nombre}</td>
                   <td className="mono">{u.email}</td>
+                  <td>
+                    <input
+                      key={u.id + ':' + (u.cargo || '')}
+                      defaultValue={u.cargo || ''}
+                      placeholder="—"
+                      title="Cargo (se guarda solo al salir del casillero)"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (u.cargo || '')) actualizar(u, { cargo: v }) }}
+                      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                      style={{ width: 160, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}
+                    />
+                  </td>
                   <td>
                     <select value={u.rol} onChange={(e) => actualizar(u, { rol: e.target.value })}
                       style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6 }}>
@@ -81,6 +107,9 @@ export default function Usuarios() {
                     {u.activo
                       ? <span className="row" style={{ gap: 5, color: '#15803d', fontWeight: 600, fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: '#22c55e' }} />Activo</span>
                       : <span className="row" style={{ gap: 5, color: 'var(--muted)', fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: '#cbd5e1' }} />Inactivo</span>}
+                    {u.debe_cambiar_clave && u.activo && (
+                      <div style={{ fontSize: 11, color: '#b45309', marginTop: 2 }}>Elige clave nueva al entrar</div>
+                    )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => setReset(u)}>Resetear clave</button>
@@ -100,6 +129,17 @@ export default function Usuarios() {
       <p className="tl-meta" style={{ marginTop: 10 }}>
         El email funciona como nombre de usuario para entrar. Desactivar no borra nada: la persona deja de poder ingresar pero su historial se conserva.
       </p>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-header"><span className="card-title"><Icono nombre="candado" size={16} color="var(--teal)" /> Reiniciar todas las contraseñas</span></div>
+        <div className="card-body">
+          <p style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 0 }}>
+            Pensado para el estreno del sistema: cada persona entra una vez más con su contraseña actual
+            y la app le pide elegir una nueva antes de seguir. Tu propia contraseña no cambia.
+          </p>
+          <button className="btn btn-navy" onClick={reiniciarClaves}>Reiniciar todas las contraseñas</button>
+        </div>
+      </div>
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-header"><span className="card-title"><Icono nombre="reportes" size={16} color="var(--teal)" /> Resumen diario por mail</span></div>
@@ -124,7 +164,7 @@ export default function Usuarios() {
 }
 
 function FormAlta({ onClose, onGuardado }) {
-  const [form, setForm] = useState({ nombre: '', email: '', rol: 'despachante', contraseña: '' })
+  const [form, setForm] = useState({ nombre: '', email: '', rol: 'despachante', cargo: '', contraseña: '' })
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   const set = (c, v) => setForm((f) => ({ ...f, [c]: v }))
@@ -143,10 +183,15 @@ function FormAlta({ onClose, onGuardado }) {
       {error && <div className="alert alert-red">{error}</div>}
       <div className="field"><label>Nombre y apellido *</label><input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} autoFocus /></div>
       <div className="field"><label>Email (usuario para entrar) *</label><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="nombre@defensoria.local" /></div>
-      <div className="field"><label>Rol</label>
-        <select value={form.rol} onChange={(e) => set('rol', e.target.value)}>
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
+      <div className="field-row">
+        <div className="field"><label>Rol</label>
+          <select value={form.rol} onChange={(e) => set('rol', e.target.value)}>
+            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>Cargo (opcional)</label>
+          <input value={form.cargo} onChange={(e) => set('cargo', e.target.value)} placeholder="ej: oficial, escribiente" />
+        </div>
       </div>
       <div className="field" style={{ marginBottom: 0 }}><label>Contraseña inicial *</label><input value={form.contraseña} onChange={(e) => set('contraseña', e.target.value)} placeholder="La persona puede cambiarla después" /></div>
     </Modal>
@@ -164,7 +209,7 @@ function FormReset({ usuario, onClose, onListo }) {
     setGuardando(true)
     try {
       await api(`/api/usuarios/${usuario.id}/password`, { method: 'POST', body: { contraseña: clave } })
-      avisar(`Contraseña de ${usuario.nombre} actualizada.`)
+      avisar(`Contraseña de ${usuario.nombre} actualizada. Al entrar va a tener que elegir una propia.`)
       onListo()
     } catch (e) { setError(e.message) } finally { setGuardando(false) }
   }
@@ -173,9 +218,12 @@ function FormReset({ usuario, onClose, onListo }) {
     <Modal titulo={`Resetear contraseña · ${usuario.nombre}`} ancho={460} onClose={onClose}
       footer={<><button className="btn btn-ghost" onClick={onClose}>Cancelar</button><button className="btn btn-teal" onClick={guardar} disabled={guardando}>{guardando ? <span className="spin" /> : 'Guardar'}</button></>}>
       {error && <div className="alert alert-red">{error}</div>}
-      <div className="field" style={{ marginBottom: 0 }}><label>Nueva contraseña</label>
+      <div className="field" style={{ marginBottom: 0 }}><label>Nueva contraseña (provisoria)</label>
         <input value={clave} onChange={(e) => setClave(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Enter' && guardar()} />
       </div>
+      <p className="tl-meta" style={{ marginTop: 10, marginBottom: 0 }}>
+        La persona entra con esta contraseña y la app le pide elegir una propia.
+      </p>
     </Modal>
   )
 }
