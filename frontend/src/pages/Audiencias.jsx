@@ -536,7 +536,8 @@ function FormAudiencia({ onClose, onGuardado }) {
 
   // Quién puede ir: defensora + secretarias + servicio social.
   const responsables = equipo.filter(puedeIrAAudiencia)
-  const despachantes = equipo.filter((u) => u.rol === 'despachante')
+  // Quién lleva el expediente: despachantes y también las secretarias.
+  const despachantes = equipo.filter((u) => u.rol === 'despachante' || u.rol === 'secretaria')
 
   function set(c, v) { setForm((f) => ({ ...f, [c]: v })) }
 

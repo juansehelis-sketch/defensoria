@@ -354,7 +354,7 @@ function DetalleLugar({ lugar, onClose, onEditar, onBorrar, onCambio }) {
       </div>
       {lugar.direccion && <div style={{ fontSize: 13.5 }}>{lugar.direccion}</div>}
       {lugar.telefono && <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>Tel: {lugar.telefono}</div>}
-      {lugar.observaciones && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{lugar.observaciones}</div>}
+      {lugar.observaciones && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, whiteSpace: 'pre-wrap' }}>{lugar.observaciones}</div>}
 
       <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
       <div style={{ fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Personas internadas acá</div>
