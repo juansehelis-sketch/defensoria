@@ -93,6 +93,7 @@ export default function Dashboard() {
               >
                 <div className="row" style={{ gap: 6 }}>
                   {n.tipo === 'expediente_urgente' && <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>URGENTE</span>}
+                  {n.tipo === 'vista_repetida' && <span className="badge" style={{ background: '#d97706', color: '#fff' }}>VISTA REPETIDA</span>}
                   <span>{n.contenido}</span>
                 </div>
                 <div className="tl-meta" style={{ marginTop: 3 }}>{fechaCorta(n.fecha_creacion)}</div>

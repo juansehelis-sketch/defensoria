@@ -288,6 +288,7 @@ export default function Listado() {
             setMostrarPegar(false); cargar()
             const partes = [`${r.creados ?? r} fila(s) nueva(s)`]
             if (r.actualizados) partes.push(`${r.actualizados} actualizada(s) con fechas de firma/subido`)
+            if (r.repetidos) partes.push(`${r.repetidos} vista(s) repetida(s): se anotó en su fila y se avisó al asignado`)
             if (r.omitidos) partes.push(`${r.omitidos} sin cambios`)
             avisar(partes.join(' · '))
           }} />

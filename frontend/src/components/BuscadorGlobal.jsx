@@ -58,7 +58,7 @@ export default function BuscadorGlobal() {
 
   function ir(url) { setAbierto(false); setQ(''); setRes(null); navigate(url) }
 
-  const total = res ? (res.expedientes.length + res.personas.length + res.legajos.length + res.modelos.length) : 0
+  const total = res ? (res.expedientes.length + res.personas.length + res.legajos.length + res.modelos.length + (res.lugares?.length || 0)) : 0
 
   return (
     <div ref={ref} style={{ position: 'relative', flex: '0 1 300px', minWidth: 150 }}>
@@ -103,6 +103,13 @@ export default function BuscadorGlobal() {
                 {res.modelos.map((m) => (
                   <BItem key={'m' + m.id} icono="modelos" onClick={() => ir('/modelos')}>
                     {m.nombre} <span className="tl-meta">· {m.carpeta}</span>
+                  </BItem>
+                ))}
+              </Grupo>
+              <Grupo titulo="Mapa (hogares e instituciones)" hay={res.lugares?.length}>
+                {(res.lugares || []).map((l) => (
+                  <BItem key={'g' + l.id} icono="mapa" onClick={() => ir(`/mapa?lugar=${l.id}`)}>
+                    {l.nombre}{l.direccion ? <span className="tl-meta"> · {truncar(l.direccion)}</span> : ''}
                   </BItem>
                 ))}
               </Grupo>

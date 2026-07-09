@@ -1,17 +1,18 @@
 """
 Buscador global: un solo endpoint que busca en expedientes, personas,
-legajos y la biblioteca, para el cuadro de búsqueda del encabezado.
+legajos, la biblioteca y los lugares del mapa (hogares, hospitales, etc.),
+para el cuadro de búsqueda del encabezado.
 """
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from app.database import get_db
-from app.models import Expediente, Defendido, Legajo, Plantilla, CarpetaModelo
+from app.models import Expediente, Defendido, Legajo, Plantilla, CarpetaModelo, LugarMapa
 
 router = APIRouter(prefix="/api/buscar", tags=["buscar"])
 
-VACIO = {"expedientes": [], "personas": [], "legajos": [], "modelos": []}
+VACIO = {"expedientes": [], "personas": [], "legajos": [], "modelos": [], "lugares": []}
 
 
 @router.get("/")
@@ -68,4 +69,18 @@ async def buscar_global(q: str = "", db: Session = Depends(get_db)):
     )
     modelos = [{"id": p.id, "nombre": p.nombre, "carpeta": cn, "categoria": cat} for p, cn, cat in plts]
 
-    return {"expedientes": expedientes, "personas": personas, "legajos": legajos, "modelos": modelos}
+    # Lugares del mapa (hogares, hospitales, etc.): busca en nombre, dirección
+    # y observaciones (ahí están edades/sexo/modalidad/contacto de cada hogar).
+    lgs = (
+        db.query(LugarMapa)
+        .filter(or_(
+            func.lower(LugarMapa.nombre).like(like),
+            func.lower(func.coalesce(LugarMapa.direccion, "")).like(like),
+            func.lower(func.coalesce(LugarMapa.observaciones, "")).like(like),
+        ))
+        .order_by(LugarMapa.nombre.asc())
+        .limit(8).all()
+    )
+    lugares = [{"id": l.id, "nombre": l.nombre, "tipo": l.tipo, "direccion": l.direccion} for l in lgs]
+
+    return {"expedientes": expedientes, "personas": personas, "legajos": legajos, "modelos": modelos, "lugares": lugares}

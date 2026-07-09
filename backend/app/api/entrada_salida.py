@@ -87,6 +87,40 @@ async def crear_entrada_salida(
     return nueva_entrada
 
 
+def anotar_vista_repetida(db, previa, fecha, urgente=False, asignacion=None):
+    """
+    El expediente ya estaba "en vista" (fila pendiente en el listado) y volvió a
+    entrar: en vez de duplicar la fila, deja constancia en la existente.
+      - Suma "Vino repetido el dd/mm/aaaa" a las observaciones (una sola vez por
+        fecha, así re-pegar el mismo Excel no lo repite).
+      - Si vino urgente, marca la fila como urgente.
+      - Le avisa en Inicio a la persona asignada.
+    Devuelve True si anotó algo nuevo; False si esa fecha ya estaba anotada.
+    """
+    etiqueta = fecha.strftime("%d/%m/%Y")
+    if f"vino repetido el {etiqueta}".lower() in (previa.observaciones or "").lower():
+        return False
+    nota = f"Vino repetido el {etiqueta}" + (" (URGENTE)" if urgente else "")
+    obs = (previa.observaciones or "").strip()
+    previa.observaciones = f"{obs} · {nota}" if obs else nota
+    if urgente and not previa.urgente:
+        previa.urgente = True
+    destinatario = (previa.asignacion or asignacion or "").strip()
+    if destinatario:
+        u = db.query(Usuario).filter(Usuario.nombre == destinatario).first()
+        if u:
+            numero = previa.numero_expediente or ""
+            db.add(Notificacion(
+                usuario_id=u.id,
+                tipo="expediente_urgente" if urgente else "vista_repetida",
+                contenido=f"Se repitió la vista{' URGENTE' if urgente else ''}: "
+                          f"{numero + ' — ' if numero else ''}{(previa.autos or '')[:80]} "
+                          f"(vino de nuevo el {etiqueta})",
+                expediente_id=previa.expediente_id,
+            ))
+    return True
+
+
 def _insertar_filas(db, filas):
     """
     Carga filas del listado pensada para re-pegar el Excel completo cada día:
@@ -95,7 +129,11 @@ def _insertar_filas(db, filas):
         si el Excel trae fecha de "pase a la firma" o "subido al Lex" que el
         sistema no tenía (o cambió), se ACTUALIZA esa fila (y se repinta sola).
         Si no hay nada nuevo, se saltea.
-    Devuelve {creados, actualizados, omitidos}.
+      - Expediente que YA ESTÁ EN VISTA (fila pendiente: sin "subido al Lex" y no
+        cancelada) y vuelve a venir con fecha nueva → NO se duplica: se anota
+        "vino repetido el dd/mm/aaaa" en la fila pendiente y se avisa en Inicio
+        a la persona asignada (marcándola urgente si vino urgente).
+    Devuelve {creados, actualizados, omitidos, repetidos}.
     """
     import unicodedata
 
@@ -107,18 +145,30 @@ def _insertar_filas(db, filas):
     def _firma(fecha, numero, juzgado, autos, asignacion):
         return (fecha.isoformat() if fecha else "", _norm(numero), _norm(juzgado), _norm(autos), _norm(asignacion))
 
-    # Mapa firma → fila existente (la primera que coincida).
+    # Mapa firma → fila existente (la primera que coincida). Además, mapas de
+    # filas PENDIENTES (sin subir al Lex, no canceladas) por número de expediente
+    # y por carátula, para detectar vistas repetidas. Ordenado por fecha
+    # descendente para quedarnos con la fila pendiente más reciente.
     existentes = {}
+    pendientes_nro = {}
+    pendientes_autos = {}
     for fila_db, nu in (
         db.query(EntradaSalida, Expediente.numero)
         .outerjoin(Expediente, EntradaSalida.expediente_id == Expediente.id)
+        .order_by(EntradaSalida.fecha.desc())
         .all()
     ):
         existentes.setdefault(_firma(fila_db.fecha, nu, fila_db.juzgado, fila_db.autos, fila_db.asignacion), fila_db)
+        if fila_db.subido_lex is None and not fila_db.cancelada:
+            if nu:
+                pendientes_nro.setdefault(_norm(nu), fila_db)
+            if fila_db.autos:
+                pendientes_autos.setdefault(_norm(fila_db.autos), fila_db)
 
     creados = 0
     actualizados = 0
     omitidos = 0
+    repetidos = 0
     for f in filas:
         autos = (f.get("autos") or "").strip()
         numero = (f.get("numero_expediente") or "").replace("*", "").strip()
@@ -154,6 +204,46 @@ def _insertar_filas(db, filas):
                 omitidos += 1
             continue
 
+        # ¿El expediente ya está en vista? (fila pendiente). Si vuelve a venir,
+        # no se carga de nuevo: se anota en la fila pendiente y se avisa.
+        previa = pendientes_nro.get(_norm(numero)) if numero else None
+        if previa is None and autos:
+            previa = pendientes_autos.get(_norm(autos))
+        if previa is not None and previa.fecha and fecha >= previa.fecha:
+            pf = _a_fecha(f.get("pase_firma"))
+            sl = _a_fecha(f.get("subido_lex"))
+            if fecha == previa.fecha:
+                # Misma vista del mismo día con algún dato distinto: actualizar
+                # lo que traiga, sin duplicar la fila.
+                cambio = False
+                if pf and pf != previa.pase_firma:
+                    previa.pase_firma = pf
+                    cambio = True
+                if sl and sl != previa.subido_lex:
+                    previa.subido_lex = sl
+                    cambio = True
+                if urgente and not previa.urgente:
+                    previa.urgente = True
+                    cambio = True
+                if asignacion and asignacion != previa.asignacion:
+                    previa.asignacion = asignacion
+                    cambio = True
+                if cambio:
+                    actualizados += 1
+                else:
+                    omitidos += 1
+            else:
+                if anotar_vista_repetida(db, previa, fecha, urgente, asignacion):
+                    repetidos += 1
+                else:
+                    omitidos += 1
+                # Si además trae fechas de firma/subido, se estampan igual.
+                if pf and pf != previa.pase_firma:
+                    previa.pase_firma = pf
+                if sl and sl != previa.subido_lex:
+                    previa.subido_lex = sl
+            continue
+
         expediente_id = None
         if numero:
             exp = db.query(Expediente).filter(Expediente.numero == numero).first()
@@ -176,6 +266,12 @@ def _insertar_filas(db, filas):
         )
         db.add(nueva)
         existentes[firma] = nueva  # por si la misma fila viene repetida en el archivo
+        if nueva.subido_lex is None:
+            # la fila nueva también cuenta como "en vista" para lo que siga del archivo
+            if numero:
+                pendientes_nro.setdefault(_norm(numero), nueva)
+            if autos:
+                pendientes_autos.setdefault(_norm(autos), nueva)
         creados += 1
 
         # Si la fila es urgente y tiene asignación, avisar a esa persona en Inicio
@@ -191,7 +287,7 @@ def _insertar_filas(db, filas):
                 ))
 
     db.commit()
-    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos}
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "repetidos": repetidos}
 
 
 @router.post("/bulk")

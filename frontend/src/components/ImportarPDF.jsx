@@ -142,6 +142,7 @@ export default function ImportarPDF({ onClose, onImportado }) {
         <div>
           <div className="alert alert-ok">
             ✓ Se crearon {resultado.total_creados} expediente(s).
+            {resultado.total_repetidos > 0 && ` ${resultado.total_repetidos} ya estaba(n) en vista: se anotó "vino repetido" en su fila y se avisó al asignado.`}
             {resultado.total_errores > 0 && ` ${resultado.total_errores} omitido(s).`}
           </div>
           {resultado.errores?.length > 0 && (

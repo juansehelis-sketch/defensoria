@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { api } from '../utils/api'
@@ -69,6 +69,7 @@ export default function Mapa() {
   const confirmCoords = useRef(null)
 
   const [lugares, setLugares] = useState([])
+  const [searchParams, setSearchParams] = useSearchParams()
   const [modo, setModo] = useState('ver')   // 'ver' | 'agregar'
   const [form, setForm] = useState(null)     // alta/edición de datos del lugar
   const [detalle, setDetalle] = useState(null) // lugar abierto en su ficha
@@ -114,6 +115,16 @@ export default function Mapa() {
   }, [lugares])
 
   function irA(l) { if (mapa.current) mapa.current.setView([l.lat, l.lng], 16, { animate: true }) }
+
+  // Si se llegó desde el buscador global (/mapa?lugar=id): centrar ese lugar
+  // y abrir su ficha.
+  useEffect(() => {
+    const id = searchParams.get('lugar')
+    if (!id || !lugares.length) return
+    const l = lugares.find((x) => String(x.id) === String(id))
+    setSearchParams({}, { replace: true })
+    if (l) { irA(l); setDetalle(l) }
+  }, [lugares, searchParams])
 
   async function buscarDireccion() {
     if (!dir.trim()) return

@@ -507,8 +507,11 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
         expedientes_parseados, juzgado = parsear_pdf_desde_archivo(str(temp_path))
         expedientes_parseados = _enriquecer_expedientes(db, expedientes_parseados, juzgado)
 
+        from app.api.entrada_salida import anotar_vista_repetida
+
         agregados = []
         errores = []
+        repetidos = []
         hoy = date.today()
 
         for exp_data in expedientes_parseados:
@@ -540,6 +543,25 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
                     db.flush()
                 elif despachante:
                     expediente.despachante_id = despachante.id
+
+                # ¿El expediente ya está en vista (fila pendiente del listado)?
+                # → no se carga de nuevo: se anota "vino repetido" en esa fila
+                # y se le avisa en Inicio a la persona asignada.
+                previa = (
+                    db.query(EntradaSalida)
+                    .filter(
+                        EntradaSalida.expediente_id == expediente.id,
+                        EntradaSalida.subido_lex.is_(None),
+                        EntradaSalida.cancelada == False,
+                    )
+                    .order_by(EntradaSalida.fecha.desc())
+                    .first()
+                )
+                if previa and previa.fecha and previa.fecha <= hoy:
+                    if previa.fecha < hoy and anotar_vista_repetida(db, previa, hoy, False, exp_data["asignacion_final"]):
+                        repetidos.append(exp_data["numero"])
+                    db.commit()
+                    continue
 
                 # Agregar la fila al listado del día (entrada de hoy).
                 # Preferimos la carátula de la base (completa) sobre la del PDF
@@ -573,8 +595,10 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
         return {
             "creados": agregados,
             "errores": errores,
+            "repetidos": repetidos,
             "total_creados": len(agregados),
-            "total_errores": len(errores)
+            "total_errores": len(errores),
+            "total_repetidos": len(repetidos),
         }
 
     except Exception as e:
