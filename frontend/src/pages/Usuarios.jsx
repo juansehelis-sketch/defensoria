@@ -182,7 +182,7 @@ function FormAlta({ onClose, onGuardado }) {
       footer={<><button className="btn btn-ghost" onClick={onClose}>Cancelar</button><button className="btn btn-teal" onClick={guardar} disabled={guardando}>{guardando ? <span className="spin" /> : 'Crear'}</button></>}>
       {error && <div className="alert alert-red">{error}</div>}
       <div className="field"><label>Nombre y apellido *</label><input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} autoFocus /></div>
-      <div className="field"><label>Email (usuario para entrar) *</label><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="nombre@defensoria.local" /></div>
+      <div className="field"><label>Email (usuario para entrar) *</label><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="nombre@mpd.gov.ar" /></div>
       <div className="field-row">
         <div className="field"><label>Rol</label>
           <select value={form.rol} onChange={(e) => set('rol', e.target.value)}>

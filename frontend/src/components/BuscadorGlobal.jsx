@@ -61,7 +61,7 @@ export default function BuscadorGlobal() {
   const total = res ? (res.expedientes.length + res.personas.length + res.legajos.length + res.modelos.length + (res.lugares?.length || 0)) : 0
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: '0 1 300px', minWidth: 150 }}>
+    <div ref={ref} className="buscador-global">
       <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
         <Icono nombre="buscar" size={15} color="rgba(255,255,255,.7)" />
       </span>

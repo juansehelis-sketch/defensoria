@@ -44,7 +44,6 @@ export default function Login() {
             type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="usuario@defensoria.local"
             autoFocus
           />
         </div>
