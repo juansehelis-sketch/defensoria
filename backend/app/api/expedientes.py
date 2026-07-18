@@ -389,6 +389,13 @@ async def eliminar_expediente(
         db.query(Modelo).filter(Modelo.expediente_id == expediente_id).update(
             {"expediente_id": None}, synchronize_session=False
         )
+    # Los proyectos referencian una fila del listado (entrada_salida_id); como
+    # ambos se borran junto con el expediente pero la base exige un orden,
+    # se despega esa referencia antes de borrar.
+    from app.models import Proyecto
+    db.query(Proyecto).filter(Proyecto.expediente_id == expediente_id).update(
+        {"entrada_salida_id": None}, synchronize_session=False
+    )
     numero = expediente.numero
     db.delete(expediente)  # arrastra listado, audiencias, proyectos, historial y defendidos
     db.commit()
