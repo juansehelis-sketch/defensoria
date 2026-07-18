@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 from app.database import get_db
-from app.models import Expediente, Usuario, EntradaSalida, Defendido
+from app.models import Expediente, Usuario, EntradaSalida, Defendido, Notificacion, Tarea, InternadoLugar
 from app.schemas import (
     Expediente as ExpedienteSchema, ExpedienteCreate, ExpedienteUpdate,
     Defendido as DefendidoSchema, DefendidoCreate,
@@ -354,9 +354,17 @@ async def eliminar_defendido(defendido_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{expediente_id}")
-async def eliminar_expediente(expediente_id: int, db: Session = Depends(get_db)):
+async def eliminar_expediente(
+    expediente_id: int,
+    definitivo: bool = False,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
     """
-    Elimina un expediente (soft delete o hard delete según política).
+    Elimina un expediente. Por defecto lo ARCHIVA (no se pierde nada).
+    Con ?definitivo=true (solo admin/defensora) lo borra de verdad, junto con
+    sus filas del listado, audiencias, proyectos, historial y defendidos.
+    Pensado para expedientes de prueba o cargados por error.
     """
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
 
@@ -366,11 +374,25 @@ async def eliminar_expediente(expediente_id: int, db: Session = Depends(get_db))
             detail="Expediente no encontrado"
         )
 
-    # Cambiar a estado "archivo" en lugar de eliminar
-    expediente.estado = "archivo"
-    db.commit()
+    if not definitivo:
+        # Cambiar a estado "archivo" en lugar de eliminar
+        expediente.estado = "archivo"
+        db.commit()
+        return {"message": f"Expediente {expediente.numero} archivado"}
 
-    return {"message": f"Expediente {expediente.numero} archivado"}
+    if usuario.rol not in ("admin", "defensora"):
+        raise HTTPException(status_code=403, detail="Solo administradores o la defensora pueden borrar definitivamente.")
+
+    # Despegar las referencias sueltas (avisos, tareas y personas del mapa
+    # apuntan al expediente pero no deben desaparecer con él).
+    for Modelo in (Notificacion, Tarea, InternadoLugar):
+        db.query(Modelo).filter(Modelo.expediente_id == expediente_id).update(
+            {"expediente_id": None}, synchronize_session=False
+        )
+    numero = expediente.numero
+    db.delete(expediente)  # arrastra listado, audiencias, proyectos, historial y defendidos
+    db.commit()
+    return {"message": f"Expediente {numero} borrado definitivamente"}
 
 
 def _limpiar_observaciones(obs: str) -> str:
