@@ -205,3 +205,21 @@ async def marcar_leida(
         notif.leida = True
         db.commit()
     return {"message": "ok"}
+
+
+@router.delete("/notificaciones/{notif_id}")
+async def borrar_notificacion(
+    notif_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Descarta (borra) un aviso propio; los ajenos no se pueden tocar."""
+    notif = (
+        db.query(Notificacion)
+        .filter(Notificacion.id == notif_id, Notificacion.usuario_id == usuario.id)
+        .first()
+    )
+    if notif:
+        db.delete(notif)
+        db.commit()
+    return {"message": "ok"}

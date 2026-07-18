@@ -88,15 +88,30 @@ export default function Dashboard() {
                 style={{
                   padding: '10px 0', borderBottom: '1px solid #edf0f5', fontSize: 13,
                   opacity: n.leida ? 0.6 : 1, cursor: n.expediente_id ? 'pointer' : 'default',
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
                 }}
                 onClick={() => n.expediente_id && navigate(`/expedientes/${n.expediente_id}`)}
               >
-                <div className="row" style={{ gap: 6 }}>
-                  {n.tipo === 'expediente_urgente' && <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>URGENTE</span>}
-                  {n.tipo === 'vista_repetida' && <span className="badge" style={{ background: '#d97706', color: '#fff' }}>VISTA REPETIDA</span>}
-                  <span>{n.contenido}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="row" style={{ gap: 6 }}>
+                    {n.tipo === 'expediente_urgente' && <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>URGENTE</span>}
+                    {n.tipo === 'vista_repetida' && <span className="badge" style={{ background: '#d97706', color: '#fff' }}>VISTA REPETIDA</span>}
+                    <span>{n.contenido}</span>
+                  </div>
+                  <div className="tl-meta" style={{ marginTop: 3 }}>{fechaCorta(n.fecha_creacion)}</div>
                 </div>
-                <div className="tl-meta" style={{ marginTop: 3 }}>{fechaCorta(n.fecha_creacion)}</div>
+                <button
+                  className="modal-close"
+                  title="Descartar este aviso"
+                  style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    try {
+                      await api(`/api/panel/notificaciones/${n.id}`, { method: 'DELETE' })
+                      setNotificaciones((prev) => prev.filter((x) => x.id !== n.id))
+                    } catch (err) { console.error(err) }
+                  }}
+                >×</button>
               </div>
             ))
           ) : (
