@@ -273,31 +273,264 @@ async def reporte_mensual_excel(anio: int, mes: int, db: Session = Depends(get_d
 
 @router.get("/carga-equipo")
 async def carga_equipo(db: Session = Depends(get_db)):
-    """Cuánto tiene cada persona pendiente y qué está demorado."""
-    hace7 = datetime.now() - timedelta(days=7)
-    hace7d = hace7.date()
+    """Cuánto tiene cada persona entre manos (proyectos y expedientes)."""
     filas = []
     # El administrador es una cuenta de sistema: no trabaja expedientes, no va al reporte.
     for u in db.query(Usuario).filter(Usuario.activo == True, Usuario.rol != "admin").all():  # noqa: E712
         recibidos = db.query(func.count(Proyecto.id)).filter(Proyecto.destinatario_id == u.id, Proyecto.estado == "enviado").scalar() or 0
         enviados = db.query(func.count(Proyecto.id)).filter(Proyecto.remitente_id == u.id, Proyecto.estado.in_(["enviado", "en_correccion"])).scalar() or 0
-        # Demorados = expedientes PROPIOS que lleva la persona (asignados, sin subir
-        # al Lex, sin la vista cancelada) y que TODAVÍA NO mandó a la firma, con más
-        # de 7 días desde que entraron. NO cuenta lo que ya está a la firma.
-        demorados = db.query(func.count(EntradaSalida.id)).filter(
-            EntradaSalida.asignacion == u.nombre,
-            EntradaSalida.subido_lex.is_(None),
-            EntradaSalida.cancelada.isnot(True),
-            EntradaSalida.pase_firma.is_(None),
-            EntradaSalida.fecha < hace7d,
-        ).scalar() or 0
         exp_activos = None
         if u.rol == "despachante":
             exp_activos = db.query(func.count(Expediente.id)).filter(Expediente.despachante_id == u.id, Expediente.estado == "activo").scalar() or 0
         filas.append({
             "persona": u.nombre, "rol": u.rol,
             "recibidos_pendientes": recibidos, "enviados_pendientes": enviados,
-            "demorados": demorados, "expedientes_activos": exp_activos,
+            "expedientes_activos": exp_activos,
         })
     filas.sort(key=lambda f: f["recibidos_pendientes"] + f["enviados_pendientes"], reverse=True)
     return filas
+
+
+# ── Tablero de estadísticas generales ──────────────────────────
+
+def _es_texto_fecha(s: str) -> bool:
+    """True si el 'juzgado' es en realidad una fecha mal cargada (dato sucio)."""
+    import re
+    s = (s or "").strip()
+    return bool(re.match(r"^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", s) or re.match(r"^\d{4}-\d{2}-\d{2}", s))
+
+
+def _objeto_de_autos(autos: str) -> str:
+    """Extrae el objeto del proceso de la carátula ('GONZALEZ S/ ALIMENTOS' → 'ALIMENTOS')."""
+    import re
+    import unicodedata
+    s = (autos or "").upper()
+    if " S/" not in s:
+        return "SIN CLASIFICAR"
+    s = s.split(" S/")[-1].strip()
+    s = s.split(" (")[0]
+    s = re.sub(r"\bURGENTE\b", " ", s)  # el urgente es una marca, no un tipo distinto
+    s = re.sub(r"[^A-ZÁÉÍÓÚÑÜ0-9\s\.]", " ", s)
+    s = " ".join(s.split()).strip(" .")
+    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+    return s[:45] or "SIN CLASIFICAR"
+
+
+@router.get("/estadisticas")
+async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    """
+    Estadísticas del período (mes=0 → año completo), generadas solas a partir
+    del trabajo cargado: vistas, demoras, personas, tipos de proceso, juzgados,
+    audiencias, proyectos y totales generales.
+    """
+    from datetime import date as _date
+    from collections import Counter, defaultdict
+
+    if mes:
+        ini = _date(anio, mes, 1)
+        fin = _date(anio + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1)
+    else:
+        ini, fin = _date(anio, 1, 1), _date(anio + 1, 1, 1)
+
+    # Vistas que ENTRARON en el período
+    entradas = (
+        db.query(EntradaSalida.fecha, EntradaSalida.juzgado, EntradaSalida.autos,
+                 EntradaSalida.asignacion, EntradaSalida.urgente, EntradaSalida.observaciones)
+        .filter(EntradaSalida.fecha >= ini, EntradaSalida.fecha < fin).all()
+    )
+    # Vistas que se RESOLVIERON (subidas al Lex) en el período
+    resueltas_rows = (
+        db.query(EntradaSalida.fecha, EntradaSalida.pase_firma, EntradaSalida.subido_lex, EntradaSalida.asignacion)
+        .filter(EntradaSalida.subido_lex >= ini, EntradaSalida.subido_lex < fin).all()
+    )
+    pendientes_rows = (
+        db.query(EntradaSalida.asignacion)
+        .filter(EntradaSalida.subido_lex.is_(None), EntradaSalida.cancelada.isnot(True)).all()
+    )
+
+    urgentes = sum(1 for e in entradas if e.urgente)
+    repetidas = sum(1 for e in entradas if "vino repetido" in (e.observaciones or "").lower())
+
+    # Demoras promedio (días corridos)
+    def _prom(valores):
+        valores = [v for v in valores if v is not None and v >= 0]
+        return round(sum(valores) / len(valores), 1) if valores else None
+    demora_total = _prom([(r.subido_lex - r.fecha).days for r in resueltas_rows if r.fecha and r.subido_lex])
+    demora_a_firma = _prom([(r.pase_firma - r.fecha).days for r in resueltas_rows if r.fecha and r.pase_firma])
+    demora_firma_a_lex = _prom([(r.subido_lex - r.pase_firma).days for r in resueltas_rows if r.pase_firma and r.subido_lex])
+
+    # Por persona (asignación de la vista)
+    por_persona = defaultdict(lambda: {"ingresadas": 0, "resueltas": 0, "pendientes": 0, "urgentes": 0, "a_la_firma": 0})
+    for e in entradas:
+        p = (e.asignacion or "Sin asignar").strip() or "Sin asignar"
+        por_persona[p]["ingresadas"] += 1
+        if e.urgente:
+            por_persona[p]["urgentes"] += 1
+    for r in resueltas_rows:
+        p = (r.asignacion or "Sin asignar").strip() or "Sin asignar"
+        por_persona[p]["resueltas"] += 1
+    for r in pendientes_rows:
+        p = (r.asignacion or "Sin asignar").strip() or "Sin asignar"
+        por_persona[p]["pendientes"] += 1
+    proyectos_env = (
+        db.query(Usuario.nombre, func.count(Proyecto.id))
+        .join(Proyecto, Proyecto.remitente_id == Usuario.id)
+        .filter(Proyecto.fecha_envio >= ini, Proyecto.fecha_envio < fin)
+        .group_by(Usuario.nombre).all()
+    )
+    for nombre, c in proyectos_env:
+        por_persona[nombre]["a_la_firma"] = c
+    personas = [{"persona": k, **v} for k, v in por_persona.items()]
+    personas.sort(key=lambda x: x["ingresadas"], reverse=True)
+
+    # Por tipo de proceso (objeto de la carátula)
+    tipos = Counter(_objeto_de_autos(e.autos) for e in entradas)
+    top = tipos.most_common(12)
+    otros = sum(c for _, c in tipos.items()) - sum(c for _, c in top)
+    por_tipo = [{"tipo": t.title(), "cantidad": c} for t, c in top]
+    if otros > 0:
+        por_tipo.append({"tipo": "Otros", "cantidad": otros})
+
+    # Por juzgado (ignorando los datos sucios donde quedó una fecha)
+    juzgados = Counter()
+    for e in entradas:
+        j = (e.juzgado or "").strip()
+        if not j or _es_texto_fecha(j):
+            juzgados["Sin dato"] += 1
+        else:
+            juzgados[j] += 1
+    por_juzgado = [{"juzgado": j, "cantidad": c} for j, c in juzgados.most_common()]
+
+    # Evolución de los últimos 12 meses (independiente del período elegido)
+    hoy = _date.today()
+    evolucion = []
+    a, m = hoy.year, hoy.month
+    for _ in range(12):
+        i0 = _date(a, m, 1)
+        f0 = _date(a + (1 if m == 12 else 0), 1 if m == 12 else m + 1, 1)
+        ing = db.query(func.count(EntradaSalida.id)).filter(EntradaSalida.fecha >= i0, EntradaSalida.fecha < f0).scalar() or 0
+        res = db.query(func.count(EntradaSalida.id)).filter(EntradaSalida.subido_lex >= i0, EntradaSalida.subido_lex < f0).scalar() or 0
+        evolucion.append({"anio": a, "mes": m, "ingresadas": ing, "resueltas": res})
+        m -= 1
+        if m == 0:
+            a, m = a - 1, 12
+    evolucion.reverse()
+
+    # Audiencias del período
+    auds = db.query(Audiencia).filter(Audiencia.fecha >= ini, Audiencia.fecha < fin).all()
+    aud_modalidad, aud_persona = Counter(), Counter()
+    for x in auds:
+        aud_modalidad[x.modalidad or "Sin definir"] += 1
+        if x.asignado_a:
+            aud_persona[x.asignado_a] += 1
+
+    # Proyectos a la firma del período
+    p_enviados = db.query(func.count(Proyecto.id)).filter(Proyecto.fecha_envio >= ini, Proyecto.fecha_envio < fin).scalar() or 0
+    p_subidos_rows = db.query(Proyecto.fecha_envio, Proyecto.fecha_subido).filter(
+        Proyecto.estado == "subido", Proyecto.fecha_subido >= ini, Proyecto.fecha_subido < fin).all()
+    p_correccion = db.query(func.count(Proyecto.id)).filter(Proyecto.estado == "en_correccion").scalar() or 0
+    demora_proyectos = _prom([(s.date() - e.date()).days for e, s in p_subidos_rows if e and s])
+
+    # Totales generales
+    from app.models import Legajo, LugarMapa, InternadoLugar
+    totales = {
+        "expedientes_activos": db.query(func.count(Expediente.id)).filter(Expediente.estado == "activo").scalar() or 0,
+        "expedientes_archivados": db.query(func.count(Expediente.id)).filter(Expediente.estado == "archivo").scalar() or 0,
+        "expedientes_nuevos_periodo": db.query(func.count(Expediente.id)).filter(Expediente.fecha_creacion >= ini, Expediente.fecha_creacion < fin).scalar() or 0,
+        "legajos": db.query(func.count(Legajo.id)).scalar() or 0,
+        "instituciones": db.query(func.count(LugarMapa.id)).scalar() or 0,
+        "personas_alojadas": db.query(func.count(InternadoLugar.id)).scalar() or 0,
+    }
+
+    return {
+        "anio": anio, "mes": mes,
+        "vistas": {
+            "ingresadas": len(entradas), "resueltas": len(resueltas_rows),
+            "pendientes": len(pendientes_rows), "urgentes": urgentes, "repetidas": repetidas,
+        },
+        "demoras": {
+            "total": demora_total,            # de que entra a que se sube al Lex
+            "hasta_firma": demora_a_firma,    # de que entra al pase a la firma
+            "firma_a_lex": demora_firma_a_lex,
+            "proyectos": demora_proyectos,    # del envío del proyecto a su subida
+        },
+        "por_persona": personas,
+        "por_tipo": por_tipo,
+        "por_juzgado": por_juzgado,
+        "evolucion": evolucion,
+        "audiencias": {"total": len(auds), "por_modalidad": dict(aud_modalidad), "por_persona": dict(aud_persona)},
+        "proyectos": {"enviados": p_enviados, "subidos": len(p_subidos_rows), "en_correccion": p_correccion},
+        "totales": totales,
+    }
+
+
+# ── Grilla de asignación (objetos de proceso × integrantes) ────
+
+_GRILLA_COLUMNAS = [
+    {"nombre": "Laura", "cargo": "Sec."}, {"nombre": "Brenda", "cargo": "Sec."},
+    {"nombre": "Silvana", "cargo": "Sec."}, {"nombre": "Josefina", "cargo": "Prosec."},
+    {"nombre": "Clarisa", "cargo": "J. de Desp."}, {"nombre": "Sofía", "cargo": "J. de Desp."},
+    {"nombre": "Augusto", "cargo": "Oficial Mayor"}, {"nombre": "Camila", "cargo": "Oficial"},
+    {"nombre": "Delfina", "cargo": "Escribiente"}, {"nombre": "Tobías", "cargo": "Escrib. Auxiliar"},
+    {"nombre": "Juan Sebastián", "cargo": "Auxiliar"}, {"nombre": "Catalina", "cargo": "Trab. Social"},
+    {"nombre": "Julia", "cargo": "Trab. Social"},
+]
+
+_GRILLA_FILAS = [
+    ("Det. de la Cap.", {"Josefina": "1-2", "Clarisa": "6-5", "Sofía": "0-7", "Augusto": "3-4",
+                         "Camila": "8 todas · 9 solo recién iniciadas", "Delfina": "9"}),
+    ("Diligencias preparatorias", {"Josefina": "1-2", "Clarisa": "6-5", "Sofía": "0-7", "Augusto": "3-4", "Camila": "8 y 9"}),
+    ("Curatelas Art. 12", {"Tobías": "Todas"}),
+    ("Divorcio · Homologaciones · Inf. Sumaria", {"Tobías": "Todas"}),
+    ("Alimentos", {"Clarisa": "0-1", "Sofía": "5-6", "Augusto": "7", "Camila": "3", "Delfina": "8-9-4", "Tobías": "2"}),
+    ("Patrimonial", {"Josefina": "6-0", "Clarisa": "2-7", "Sofía": "3-8", "Augusto": "9-1", "Camila": "4-5"}),
+    ("Desalojo", {"Delfina": "3-4-5-6-7-8-9", "Tobías": "0-1-2"}),
+    ("DVF", {"Josefina": "9", "Clarisa": "2", "Sofía": "8", "Augusto": "5", "Camila": "6",
+             "Delfina": "7-0", "Tobías": "3", "Juan Sebastián": "1-4"}),
+    ("Adopciones", {"Josefina": "5", "Delfina": "0-1-2-3-4-7-8-9", "Juan Sebastián": "6"}),
+    ("Autorización · Reintegro de Hijo · Restitución Inter. · Exequatur · Priv. del Cuid. Pers.",
+     {"Laura": "0-1-2-3", "Brenda": "4-5-7", "Silvana": "6-8-9"}),
+    ("Cuid. Personal · Reg. de Com. · Filiaciones · Impugnaciones",
+     {"Laura": "0-1-2-3", "Brenda": "4-5-7", "Silvana": "6-8-9"}),
+    ("Control de Leg.", {"Catalina": "0-1-2-3-4", "Julia": "5-6-7-8-9"}),
+    ("Guardas y Tutelas", {"Catalina": "0-1-2-3-4", "Julia": "5-6-7-8-9"}),
+    ("Inter. de Menores de Edad · Dilig. Prep. de Menores de Edad",
+     {"Josefina": "9", "Clarisa": "1", "Augusto": "5", "Camila": "7", "Tobías": "0-2-4-8-6", "Juan Sebastián": "3"}),
+]
+
+_GRILLA_INICIAL = {
+    "titulo": "Grilla de asignación — Febrero 2026",
+    "columnas": _GRILLA_COLUMNAS,
+    "filas": [{"objeto": o, "celdas": c} for o, c in _GRILLA_FILAS],
+}
+
+
+@router.get("/grilla")
+async def obtener_grilla(db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+    """Grilla de asignación de la defensoría (se crea con la grilla vigente la primera vez)."""
+    from app.models import GrillaAsignacion
+    g = db.query(GrillaAsignacion).first()
+    if not g:
+        g = GrillaAsignacion(datos=_GRILLA_INICIAL)
+        db.add(g)
+        db.commit()
+        db.refresh(g)
+    return {"datos": g.datos, "fecha_actualizacion": g.fecha_actualizacion}
+
+
+@router.put("/grilla")
+async def guardar_grilla(cuerpo: dict = Body(...), db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)):
+    """Guarda la grilla completa (edición libre para todo el equipo)."""
+    from app.models import GrillaAsignacion
+    datos = cuerpo.get("datos")
+    if not isinstance(datos, dict) or not isinstance(datos.get("filas"), list):
+        raise HTTPException(status_code=400, detail="Grilla inválida.")
+    g = db.query(GrillaAsignacion).first()
+    if not g:
+        g = GrillaAsignacion()
+        db.add(g)
+    g.datos = datos
+    from app.utils.auditoria import registrar
+    registrar(db, usuario, "editó", "grilla de asignación", datos.get("titulo") or "")
+    db.commit()
+    return {"ok": True}

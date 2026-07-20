@@ -60,10 +60,6 @@ export default function Login() {
         <button className="btn btn-teal" type="submit" disabled={cargando} style={{ width: '100%', marginTop: 8 }}>
           {cargando ? <span className="spin" /> : 'Ingresar'}
         </button>
-
-        <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 18, lineHeight: 1.7 }}>
-          <Icono nombre="candado" size={12} style={{ verticalAlign: '-2px', marginRight: 3 }} />Todo corre en la red local.<br />Ningún dato sale a servicios externos.
-        </p>
       </form>
     </div>
   )

@@ -90,6 +90,19 @@ class EntradaSalida(Base):
         return self.expediente.numero if self.expediente else None
 
 
+class GrillaAsignacion(Base):
+    """
+    Grilla de asignación de expedientes: objetos de proceso (filas) por
+    integrantes del equipo (columnas), con las terminaciones de expediente en
+    cada celda. Una sola fila en la tabla con todo el cuadro en JSON.
+    """
+    __tablename__ = "grilla_asignacion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    datos = Column(JSON, default=dict)  # {titulo, columnas: [{nombre, cargo}], filas: [{objeto, celdas: {nombre: texto}}]}
+    fecha_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class Historial(Base):
     __tablename__ = "historial"
 
