@@ -25,17 +25,14 @@ ROSTER = [
     ("Camila",   "mcarrizo@mpd.gov.ar",      "despachante", "oficial",              "camila"),
     ("Delfina",  "dmgarcia@mpd.gov.ar",      "despachante", "escribiente",          "delfina"),
     ("Tobías",   "tcanicoba@mpd.gov.ar",     "despachante", "escribiente auxiliar", "tobias"),
-    ("Juanse",   "jheliszkowski@mpd.gov.ar", "despachante", "escribiente auxiliar", "juan"),
+    ("Juanse",   "jheliszkowski@mpd.gov.ar", "admin",       "escribiente auxiliar", "juan"),
     ("Catalina", "mrichards@mpd.gov.ar",     "despachante", "servicio social",      "catalina"),
     ("Julia",    "mbavestrello@mpd.gov.ar",  "despachante", "servicio social",      "julia"),
-    ("Administrador", "admin@defensoria.local", "admin",    None,                   "admin"),
 ]
 
 
 def _clave_inicial(nombre: str, rol: str) -> str:
-    """Contraseña inicial: nombre en minúsculas sin tildes + '123' (admin123 para el admin)."""
-    if rol == "admin":
-        return "admin123"
+    """Contraseña inicial: nombre en minúsculas sin tildes + '123'."""
     base = unicodedata.normalize("NFD", nombre.split()[0].lower())
     base = "".join(c for c in base if not unicodedata.combining(c))
     return base + "123"

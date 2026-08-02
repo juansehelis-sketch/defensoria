@@ -81,6 +81,9 @@ _COLUMNAS_EXTRA = [
     ("expedientes", "ficha", "TEXT"),
     ("usuarios", "cargo", "VARCHAR"),
     ("usuarios", "debe_cambiar_clave", "BOOLEAN DEFAULT FALSE"),
+    ("usuarios", "ultimo_ingreso", "TIMESTAMP"),
+    ("usuarios", "ultimo_ingreso_ip", "VARCHAR"),
+    ("usuarios", "ultimo_ingreso_lugar", "VARCHAR"),
     ("audiencias", "despachante", "VARCHAR"),
 ]
 

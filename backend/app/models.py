@@ -24,6 +24,10 @@ class Usuario(Base):
     debe_cambiar_clave = Column(Boolean, default=False)
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
+    # Registro del último ingreso (fecha/hora, IP y ubicación aproximada por IP).
+    ultimo_ingreso = Column(DateTime, nullable=True)
+    ultimo_ingreso_ip = Column(String, nullable=True)
+    ultimo_ingreso_lugar = Column(String, nullable=True)
 
     # Relaciones
     expedientes_asignados = relationship("Expediente", back_populates="despachante", foreign_keys="Expediente.despachante_id")

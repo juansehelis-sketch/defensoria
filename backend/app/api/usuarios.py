@@ -2,9 +2,9 @@
 Endpoints de usuarios y autenticación.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
 from app.database import get_db
 from app.models import Usuario
 from app.schemas import Usuario as UsuarioSchema, UsuarioCreate, UsuarioUpdate, UsuarioLogin, TokenResponse
@@ -13,15 +13,42 @@ from app.utils.deps import obtener_usuario_actual, requerir_rol
 
 # Quién puede administrar usuarios (altas/bajas/roles/contraseñas).
 ADMIN_USUARIOS = ("admin", "defensora")
+# Único usuario que puede ver los ingresos (fecha/hora/IP/ubicación) del equipo.
+EMAIL_VE_INGRESOS = "jheliszkowski@mpd.gov.ar"
 from app.config import settings
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
 
+def _ip_de(request: Request) -> str | None:
+    """IP real del cliente. En Render (detrás de un proxy) viene en X-Forwarded-For."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+def _ubicacion_de_ip(ip: str | None) -> str | None:
+    """Ubicación aproximada por IP (ciudad/provincia/país). Best-effort, sin clave."""
+    if not ip or ip in ("localhost", "::1") or ip.startswith(("127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.", "172.31.")):
+        return None
+    try:
+        import urllib.request, json
+        url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city"
+        with urllib.request.urlopen(url, timeout=3) as r:
+            d = json.loads(r.read().decode())
+        if d.get("status") == "success":
+            partes = [d.get("city"), d.get("regionName"), d.get("country")]
+            return ", ".join(p for p in partes if p) or None
+    except Exception:
+        return None
+    return None
+
+
 @router.post("/login", response_model=TokenResponse)
-async def login(usuario_login: UsuarioLogin, db: Session = Depends(get_db)):
+async def login(usuario_login: UsuarioLogin, request: Request, db: Session = Depends(get_db)):
     """
-    Login de usuario. Retorna JWT token.
+    Login de usuario. Retorna JWT token y registra el ingreso (fecha/hora/IP).
     """
     # Buscar usuario por email
     usuario = db.query(Usuario).filter(Usuario.email == usuario_login.email).first()
@@ -37,6 +64,14 @@ async def login(usuario_login: UsuarioLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario desactivado"
         )
+
+    # Registrar el ingreso. La ubicación se resuelve después (al mirar el panel),
+    # para no demorar el login con una llamada externa: guardamos fecha/hora e IP,
+    # y limpiamos la ubicación para que se recalcule con la IP nueva.
+    usuario.ultimo_ingreso = datetime.now()
+    usuario.ultimo_ingreso_ip = _ip_de(request)
+    usuario.ultimo_ingreso_lugar = None
+    db.commit()
 
     # Crear token
     access_token = crear_access_token(
@@ -161,6 +196,78 @@ async def reiniciar_todas_las_claves(
     )
     db.commit()
     return {"ok": True, "marcados": n}
+
+
+@router.get("/ingresos")
+async def ver_ingresos(
+    db: Session = Depends(get_db),
+    actual: Usuario = Depends(obtener_usuario_actual),
+):
+    """
+    Últimos ingresos de cada integrante (fecha/hora, IP y ubicación aproximada).
+    Restringido: solo lo puede ver un único usuario (el titular del sistema).
+    """
+    if actual.email != EMAIL_VE_INGRESOS:
+        raise HTTPException(status_code=403, detail="No tenés permiso para ver esto.")
+
+    usuarios = db.query(Usuario).order_by(Usuario.nombre.asc()).all()
+    # Resolver la ubicación que falte (se limpió en el último login) y cachearla.
+    cambio = False
+    for u in usuarios:
+        if u.ultimo_ingreso_ip and not u.ultimo_ingreso_lugar:
+            loc = _ubicacion_de_ip(u.ultimo_ingreso_ip)
+            if loc:
+                u.ultimo_ingreso_lugar = loc
+                cambio = True
+    if cambio:
+        db.commit()
+
+    return [{
+        "id": u.id, "nombre": u.nombre, "email": u.email, "rol": u.rol,
+        "cargo": u.cargo, "activo": u.activo,
+        "ultimo_ingreso": u.ultimo_ingreso,
+        "ip": u.ultimo_ingreso_ip,
+        "ubicacion": u.ultimo_ingreso_lugar,
+    } for u in usuarios]
+
+
+@router.delete("/{usuario_id}")
+async def eliminar_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    actual: Usuario = Depends(requerir_rol(*ADMIN_USUARIOS)),
+):
+    """
+    Borra DEFINITIVAMENTE un usuario (admin / defensora). Suelta las referencias
+    (expedientes, historial, proyectos, auditoría) y borra sus avisos y tareas.
+    No deja borrar al último administrador/defensora, para no quedar sin acceso.
+    """
+    u = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if u.rol in ADMIN_USUARIOS:
+        otros = (
+            db.query(Usuario)
+            .filter(Usuario.id != usuario_id, Usuario.rol.in_(ADMIN_USUARIOS), Usuario.activo == True)
+            .count()
+        )
+        if otros == 0:
+            raise HTTPException(status_code=400, detail="No podés borrar al último administrador o defensora.")
+
+    from app.models import Expediente, Historial, Proyecto, Notificacion, Tarea, Auditoria
+    db.query(Expediente).filter(Expediente.despachante_id == usuario_id).update({"despachante_id": None}, synchronize_session=False)
+    db.query(Historial).filter(Historial.usuario_id == usuario_id).update({"usuario_id": None}, synchronize_session=False)
+    db.query(Proyecto).filter(Proyecto.remitente_id == usuario_id).update({"remitente_id": None}, synchronize_session=False)
+    db.query(Proyecto).filter(Proyecto.destinatario_id == usuario_id).update({"destinatario_id": None}, synchronize_session=False)
+    db.query(Auditoria).filter(Auditoria.usuario_id == usuario_id).update({"usuario_id": None}, synchronize_session=False)
+    db.query(Notificacion).filter(Notificacion.usuario_id == usuario_id).delete(synchronize_session=False)
+    db.query(Tarea).filter(Tarea.usuario_id == usuario_id).delete(synchronize_session=False)
+
+    nombre = u.nombre
+    db.delete(u)
+    db.commit()
+    return {"ok": True, "borrado": nombre}
 
 
 @router.put("/{usuario_id}", response_model=UsuarioSchema)

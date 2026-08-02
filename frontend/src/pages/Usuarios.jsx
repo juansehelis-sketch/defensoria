@@ -12,6 +12,8 @@ import Modal from '../components/Modal'
 import Icono from '../components/Icono'
 
 const ROLES = ['despachante', 'secretaria', 'defensora', 'admin']
+// Único usuario que puede ver los ingresos del equipo (debe coincidir con el backend).
+const EMAIL_VE_INGRESOS = 'jheliszkowski@mpd.gov.ar'
 
 export default function Usuarios() {
   const { usuario } = useAuth()
@@ -20,6 +22,15 @@ export default function Usuarios() {
   const [alta, setAlta] = useState(false)
   const [reset, setReset] = useState(null) // usuario al que se le resetea la clave
   const [error, setError] = useState('')
+  const [ingresos, setIngresos] = useState(null)
+  const [cargIngresos, setCargIngresos] = useState(false)
+  const puedeVerIngresos = usuario?.email === EMAIL_VE_INGRESOS
+
+  async function cargarIngresos() {
+    setCargIngresos(true)
+    try { setIngresos(await api('/api/usuarios/ingresos')) }
+    catch (e) { avisar(e.message, 'error') } finally { setCargIngresos(false) }
+  }
 
   async function cargar() {
     setCargando(true)
@@ -123,6 +134,42 @@ export default function Usuarios() {
           <button className="btn btn-navy" onClick={reiniciarClaves}>Reiniciar todas las contraseñas</button>
         </div>
       </div>
+
+      {puedeVerIngresos && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <span className="card-title"><Icono nombre="candado" size={16} color="var(--teal)" /> Últimos ingresos del equipo</span>
+            <button className="btn btn-ghost btn-sm" onClick={cargarIngresos} disabled={cargIngresos}>
+              {cargIngresos ? <span className="spin" /> : (ingresos ? 'Actualizar' : 'Ver ingresos')}
+            </button>
+          </div>
+          <div className="card-body">
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 0 }}>
+              Fecha, hora, IP y ubicación aproximada del último ingreso de cada persona. Esta sección solo la ves vos.
+              La ubicación se estima por la IP (ciudad/proveedor, no exacta).
+            </p>
+            {ingresos === null ? (
+              <div className="empty" style={{ padding: 12 }}>Tocá "Ver ingresos" para consultarlo.</div>
+            ) : (
+              <div className="table-scroll">
+                <table className="data">
+                  <thead><tr><th>Persona</th><th>Último ingreso</th><th>IP</th><th>Ubicación aproximada</th></tr></thead>
+                  <tbody>
+                    {ingresos.map((u) => (
+                      <tr key={u.id} style={{ cursor: 'default' }}>
+                        <td>{u.nombre} {!u.activo && <span className="tl-meta">(inactivo)</span>}</td>
+                        <td>{u.ultimo_ingreso ? new Date(u.ultimo_ingreso).toLocaleString('es-AR') : <span className="muted">— nunca ingresó —</span>}</td>
+                        <td className="mono">{u.ip || '—'}</td>
+                        <td>{u.ubicacion || (u.ip ? <span className="muted">no se pudo estimar</span> : '—')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {alta && <FormAlta onClose={() => setAlta(false)} onGuardado={() => { setAlta(false); cargar() }} />}
       {reset && <FormReset usuario={reset} onClose={() => setReset(null)} onListo={() => setReset(null)} />}
