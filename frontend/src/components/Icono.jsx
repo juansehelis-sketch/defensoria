@@ -35,6 +35,8 @@ const PATHS = {
   chat: 'M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-3.7-.7L3 21l1.8-5.3a8.4 8.4 0 0 1-.8-3.7 8.4 8.4 0 0 1 8.4-8.4h.6a8.4 8.4 0 0 1 8 8z',
   campana: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
   campanaMuda: 'M13.7 21a2 2 0 0 1-3.4 0M18.6 13A17 17 0 0 1 18 8M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14M18 8a6 6 0 0 0-9.3-5M2 2l20 20',
+  agrandar: 'M15 3h6v6M9 21H3v-6M21 3l-7.5 7.5M3 21l7.5-7.5',
+  achicar: 'M10 4v6H4M14 20v-6h6M14 10l7-7M3 21l7-7',
 }
 
 export default function Icono({ nombre, size = 18, color = 'currentColor', strokeWidth = 1.9, style }) {

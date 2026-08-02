@@ -3,6 +3,9 @@
  * pantalla. Mensajes entre integrantes de la defensoría, de a dos o en grupos,
  * con archivos adjuntos. Cuando llega un mensaje suena un aviso y aparece la
  * notificación del navegador (aunque la app esté en otra pestaña).
+ *
+ * Dos tamaños: el panel chico de siempre, y una vista grande (botón de
+ * agrandar) con las conversaciones a la izquierda y el hilo a la derecha.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -76,6 +79,7 @@ export default function ChatFlotante() {
   const { usuario } = useAuth()
 
   const [abierto, setAbierto] = useState(false)
+  const [grande, setGrande] = useState(false)
   const [conversaciones, setConversaciones] = useState([])
   const [activaId, setActivaId] = useState(null)
   const [mensajes, setMensajes] = useState([])
@@ -103,6 +107,8 @@ export default function ChatFlotante() {
 
   const activa = conversaciones.find((c) => c.id === activaId) || null
   const sinLeer = conversaciones.reduce((t, c) => t + (c.no_leidos || 0), 0)
+  // En pantallas chicas el panel ya ocupa casi todo: no hace falta agrandar.
+  const enGrande = grande && !angosto
 
   useEffect(() => {
     const onResize = () => setAngosto(window.innerWidth < 560)
@@ -122,6 +128,11 @@ export default function ChatFlotante() {
     try {
       if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission()
     } catch { /* navegador sin notificaciones */ }
+  }
+
+  function cerrarTodo() {
+    setAbierto(false)
+    setGrande(false)
   }
 
   function notificar(conv) {
@@ -214,7 +225,7 @@ export default function ChatFlotante() {
     return () => { vivo = false; clearInterval(t) }
   }, [activaId, abierto, marcarLeido])
 
-  useEffect(() => { finRef.current?.scrollIntoView({ block: 'end' }) }, [mensajes.length, activaId])
+  useEffect(() => { finRef.current?.scrollIntoView({ block: 'end' }) }, [mensajes.length, activaId, grande])
 
   // Al volver a la ventana con la conversación abierta, se da por leída.
   useEffect(() => {
@@ -307,6 +318,205 @@ export default function ChatFlotante() {
     }
   }
 
+  // ── Partes de la pantalla (se arman igual en el panel chico y en el grande) ──
+
+  const botonBarra = (props) => ({
+    background: 'none', border: 'none', color: '#fff', cursor: 'pointer',
+    padding: 2, display: 'flex', ...props,
+  })
+
+  function verConversaciones() {
+    if (conversaciones.length === 0) {
+      return (
+        <div className="empty" style={{ padding: '34px 18px', fontSize: 13 }}>
+          Todavía no hay conversaciones.
+          <br />
+          <button className="btn btn-teal btn-sm" style={{ marginTop: 12 }} onClick={() => setNueva(true)}>
+            <Icono nombre="agregar" size={14} />Empezar una
+          </button>
+        </div>
+      )
+    }
+    return conversaciones.map((c) => (
+      <div key={c.id} onClick={() => setActivaId(c.id)}
+        style={{
+          padding: '11px 13px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+          display: 'flex', gap: 10, alignItems: 'center',
+          background: enGrande && c.id === activaId ? 'var(--teal-lt)' : 'transparent',
+        }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+          background: c.tipo === 'grupo' ? 'var(--muted)' : 'var(--navy)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700,
+        }}>
+          {c.tipo === 'grupo' ? <Icono nombre="personas" size={17} /> : iniciales(c.titulo)}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'baseline' }}>
+            <span style={{ fontSize: 13.5, fontWeight: c.no_leidos ? 700 : 600, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {c.titulo}
+            </span>
+            {c.fecha_ultimo_mensaje && (
+              <span style={{ fontSize: 10.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{hora(c.fecha_ultimo_mensaje)}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center', marginTop: 2 }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: c.no_leidos ? 600 : 400 }}>
+              {c.ultimo_autor && c.tipo === 'grupo' ? `${c.ultimo_autor.split(' ')[0]}: ` : ''}{c.ultimo_mensaje}
+            </span>
+            {c.no_leidos > 0 && (
+              <span style={{ background: 'var(--teal)', color: '#fff', borderRadius: 99, fontSize: 10.5, fontWeight: 700, padding: '1px 7px', flexShrink: 0 }}>
+                {c.no_leidos}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    ))
+  }
+
+  function verMensajes() {
+    if (cargandoHilo) return <div className="loading-center" style={{ padding: 30 }}><span className="spin" /></div>
+    if (mensajes.length === 0) return <div className="empty" style={{ padding: 22, fontSize: 13 }}>Escribí el primer mensaje.</div>
+
+    return mensajes.map((m, i) => {
+      const mio = m.autor_id === usuario.id
+      const prev = mensajes[i - 1]
+      const nuevoDia = !prev || diaDe(prev.fecha_creacion) !== diaDe(m.fecha_creacion)
+      const mismoAutor = prev && prev.autor_id === m.autor_id && !nuevoDia
+      return (
+        <div key={m.id}>
+          {nuevoDia && (
+            <div style={{ textAlign: 'center', margin: '10px 0 12px' }}>
+              <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 10.5, fontWeight: 600, padding: '3px 11px', borderRadius: 99 }}>
+                {diaDe(m.fecha_creacion)}
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: mio ? 'flex-end' : 'flex-start', marginTop: mismoAutor ? 3 : 8 }}>
+            <div className="chat-burbuja" style={{
+              maxWidth: enGrande ? '66%' : '84%', minWidth: 84, padding: '7px 10px 5px', borderRadius: 12,
+              background: m.borrado ? 'transparent' : mio ? 'var(--navy)' : 'var(--surface)',
+              color: mio && !m.borrado ? '#fff' : 'var(--text)',
+              border: m.borrado ? '1px dashed var(--border)' : mio ? 'none' : '1px solid var(--border)',
+            }}>
+              {activa.tipo === 'grupo' && !mio && !mismoAutor && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal)', marginBottom: 3 }}>{m.autor_nombre}</div>
+              )}
+
+              {m.borrado ? (
+                <div style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic' }}>Mensaje eliminado</div>
+              ) : (
+                <>
+                  {m.archivo_url && (esImagen(m) ? (
+                    <a href={urlArchivo(m.archivo_url)} target="_blank" rel="noreferrer">
+                      <img src={urlArchivo(m.archivo_url)} alt={m.archivo_nombre}
+                        style={{ maxWidth: '100%', maxHeight: enGrande ? 340 : 230, borderRadius: 8, display: 'block', marginBottom: m.texto ? 6 : 2 }} />
+                    </a>
+                  ) : (
+                    <a href={urlArchivo(m.archivo_url)} target="_blank" rel="noreferrer"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+                        background: mio ? 'rgba(255,255,255,.14)' : 'var(--teal-lt)',
+                        borderRadius: 8, padding: '7px 9px', marginBottom: m.texto ? 6 : 2,
+                        color: mio ? '#fff' : 'var(--teal)',
+                      }}>
+                      <Icono nombre="doc" size={17} />
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 600, wordBreak: 'break-all' }}>{m.archivo_nombre}</span>
+                        <span style={{ fontSize: 10.5, opacity: .8 }}>{tamano(m.archivo_tamano)}</span>
+                      </span>
+                    </a>
+                  ))}
+
+                  {m.texto && (
+                    <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.texto}</div>
+                  )}
+                </>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 7, marginTop: 2 }}>
+                {!m.borrado && mio && (
+                  <button className="chat-borrar" onClick={() => borrarMensaje(m)} title="Borrar mensaje"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0, transition: 'opacity .15s' }}>
+                    <Icono nombre="borrar" size={11} />
+                  </button>
+                )}
+                <span style={{ fontSize: 9.5, opacity: mio && !m.borrado ? .75 : .6 }}>{hora(m.fecha_creacion)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    })
+  }
+
+  /** Hilo completo: mensajes + caja para escribir. */
+  function verHilo() {
+    return (
+      <>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setArrastrando(true) }}
+          onDragLeave={() => setArrastrando(false)}
+          onDrop={onDrop}
+          style={{
+            flex: 1, overflowY: 'auto', minHeight: 0, padding: enGrande ? '16px 20px' : '12px 13px',
+            background: arrastrando ? 'var(--teal-lt)' : 'var(--bg)',
+            outline: arrastrando ? '2px dashed var(--teal)' : 'none', outlineOffset: -5,
+          }}
+        >
+          {verMensajes()}
+          <div ref={finRef} />
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', padding: enGrande ? '10px 14px' : '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-end' }}>
+          <input ref={inputArchivo} type="file" style={{ display: 'none' }} onChange={(e) => enviarArchivo(e.target.files?.[0])} />
+          <button className="btn btn-ghost btn-sm" onClick={() => inputArchivo.current?.click()} disabled={enviando}
+            title="Adjuntar un archivo" style={{ padding: '7px 9px' }}>
+            <Icono nombre="clip" size={15} />
+          </button>
+          <textarea
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onPaste={onPaste}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarTexto() } }}
+            placeholder="Escribí un mensaje"
+            rows={1}
+            style={{
+              flex: 1, resize: 'none', maxHeight: enGrande ? 150 : 110, minHeight: 36, padding: '8px 11px',
+              border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+              lineHeight: 1.45, overflowY: 'auto',
+            }}
+            onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, enGrande ? 150 : 110) + 'px' }}
+          />
+          <button className="btn btn-teal btn-sm" onClick={enviarTexto} disabled={enviando || !texto.trim()} style={{ padding: '9px 13px' }}>
+            Enviar
+          </button>
+        </div>
+      </>
+    )
+  }
+
+  /** Datos de la conversación (nombre e integrantes) para el encabezado. */
+  const subtituloActiva = activa && (activa.tipo === 'grupo'
+    ? activa.miembros.map((m) => m.nombre).join(', ')
+    : (activa.miembros.find((m) => m.id !== usuario?.id)?.cargo || ''))
+
+  const botonesDeLaConversacion = (color) => activa && (
+    <>
+      {activa.tipo === 'grupo' && (
+        <button onClick={() => setEditarGrupo(true)} title="Integrantes del grupo"
+          style={{ background: 'none', border: 'none', color, cursor: 'pointer', padding: 2, display: 'flex' }}>
+          <Icono nombre="personas" size={16} />
+        </button>
+      )}
+      <button onClick={() => salirDe(activa)} title={activa.tipo === 'grupo' ? 'Salir del grupo' : 'Borrar conversación'}
+        style={{ background: 'none', border: 'none', color, cursor: 'pointer', padding: 2, display: 'flex' }}>
+        <Icono nombre="borrar" size={15} />
+      </button>
+    </>
+  )
+
   if (!usuario) return null
 
   const anchoPanel = angosto ? 'calc(100vw - 24px)' : 384
@@ -315,32 +525,34 @@ export default function ChatFlotante() {
   return (
     <>
       {/* Botón flotante */}
-      <button
-        onClick={() => (abierto ? setAbierto(false) : abrirPanel())}
-        title={abierto ? 'Cerrar el chat' : 'Chat del equipo'}
-        style={{
-          position: 'fixed', right: 22, bottom: 22, zIndex: 400,
-          width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-          background: 'var(--navy)', color: '#fff',
-          boxShadow: '0 8px 22px rgba(0,0,0,.28)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <Icono nombre={abierto ? 'cerrar' : 'chat'} size={24} strokeWidth={2} />
-        {!abierto && sinLeer > 0 && (
-          <span style={{
-            position: 'absolute', top: -2, right: -2, minWidth: 22, height: 22, borderRadius: 99,
-            background: 'var(--red, #d64545)', color: '#fff', fontSize: 11.5, fontWeight: 800,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px',
-            border: '2px solid #fff',
-          }}>
-            {sinLeer > 99 ? '99+' : sinLeer}
-          </span>
-        )}
-      </button>
+      {!enGrande && (
+        <button
+          onClick={() => (abierto ? cerrarTodo() : abrirPanel())}
+          title={abierto ? 'Cerrar el chat' : 'Chat del equipo'}
+          style={{
+            position: 'fixed', right: 22, bottom: 22, zIndex: 400,
+            width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: 'var(--navy)', color: '#fff',
+            boxShadow: '0 8px 22px rgba(0,0,0,.28)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Icono nombre={abierto ? 'cerrar' : 'chat'} size={24} strokeWidth={2} />
+          {!abierto && sinLeer > 0 && (
+            <span style={{
+              position: 'absolute', top: -2, right: -2, minWidth: 22, height: 22, borderRadius: 99,
+              background: 'var(--red, #d64545)', color: '#fff', fontSize: 11.5, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px',
+              border: '2px solid #fff',
+            }}>
+              {sinLeer > 99 ? '99+' : sinLeer}
+            </span>
+          )}
+        </button>
+      )}
 
-      {/* Panel */}
-      {abierto && (
+      {/* Panel chico */}
+      {abierto && !enGrande && (
         <div style={{
           position: 'fixed', right: angosto ? 12 : 22, bottom: 88, zIndex: 400,
           width: anchoPanel, height: altoPanel,
@@ -348,11 +560,9 @@ export default function ChatFlotante() {
           boxShadow: '0 18px 50px rgba(0,0,0,.3)', border: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column',
         }}>
-          {/* Encabezado */}
           <div style={{ background: 'var(--navy3, var(--navy))', color: '#fff', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
             {activa && (
-              <button onClick={() => setActivaId(null)} title="Volver a las conversaciones"
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex' }}>
+              <button onClick={() => setActivaId(null)} title="Volver a las conversaciones" style={botonBarra()}>
                 <Icono nombre="volver" size={17} />
               </button>
             )}
@@ -362,207 +572,99 @@ export default function ChatFlotante() {
               </div>
               {activa && (
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {activa.tipo === 'grupo'
-                    ? activa.miembros.map((m) => m.nombre).join(', ')
-                    : (activa.miembros.find((m) => m.id !== usuario.id)?.cargo || '')}
+                  {subtituloActiva}
                 </div>
               )}
             </div>
 
-            {activa ? (
-              <>
-                {activa.tipo === 'grupo' && (
-                  <button onClick={() => setEditarGrupo(true)} title="Integrantes del grupo"
-                    style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex' }}>
-                    <Icono nombre="personas" size={16} />
-                  </button>
-                )}
-                <button onClick={() => salirDe(activa)} title={activa.tipo === 'grupo' ? 'Salir del grupo' : 'Borrar conversación'}
-                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex' }}>
-                  <Icono nombre="borrar" size={15} />
-                </button>
-              </>
-            ) : (
+            {activa ? botonesDeLaConversacion('#fff') : (
               <>
                 <button onClick={cambiarSonido} title={conSonido ? 'Silenciar el aviso' : 'Activar el aviso sonoro'}
-                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex', opacity: conSonido ? 1 : .55 }}>
+                  style={botonBarra({ opacity: conSonido ? 1 : .55 })}>
                   <Icono nombre={conSonido ? 'campana' : 'campanaMuda'} size={16} />
                 </button>
-                <button onClick={() => setNueva(true)} title="Nueva conversación"
-                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex' }}>
+                <button onClick={() => setNueva(true)} title="Nueva conversación" style={botonBarra()}>
                   <Icono nombre="agregar" size={18} />
                 </button>
               </>
             )}
-            <button onClick={() => setAbierto(false)} title="Cerrar"
-              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 2, display: 'flex' }}>
+            {!angosto && (
+              <button onClick={() => setGrande(true)} title="Ver en grande" style={botonBarra()}>
+                <Icono nombre="agrandar" size={15} />
+              </button>
+            )}
+            <button onClick={cerrarTodo} title="Cerrar" style={botonBarra()}>
               <Icono nombre="cerrar" size={16} />
             </button>
           </div>
 
-          {/* Cuerpo */}
           {!activa ? (
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {conversaciones.length === 0 ? (
-                <div className="empty" style={{ padding: '34px 18px', fontSize: 13 }}>
-                  Todavía no hay conversaciones.
-                  <br />
-                  <button className="btn btn-teal btn-sm" style={{ marginTop: 12 }} onClick={() => setNueva(true)}>
-                    <Icono nombre="agregar" size={14} />Empezar una
-                  </button>
-                </div>
-              ) : (
-                conversaciones.map((c) => (
-                  <div key={c.id} onClick={() => setActivaId(c.id)}
-                    style={{ padding: '11px 13px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: c.tipo === 'grupo' ? 'var(--muted)' : 'var(--navy)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700,
-                    }}>
-                      {c.tipo === 'grupo' ? <Icono nombre="personas" size={17} /> : iniciales(c.titulo)}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'baseline' }}>
-                        <span style={{ fontSize: 13.5, fontWeight: c.no_leidos ? 700 : 600, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {c.titulo}
-                        </span>
-                        {c.fecha_ultimo_mensaje && (
-                          <span style={{ fontSize: 10.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{hora(c.fecha_ultimo_mensaje)}</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center', marginTop: 2 }}>
-                        <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: c.no_leidos ? 600 : 400 }}>
-                          {c.ultimo_autor && c.tipo === 'grupo' ? `${c.ultimo_autor.split(' ')[0]}: ` : ''}{c.ultimo_mensaje}
-                        </span>
-                        {c.no_leidos > 0 && (
-                          <span style={{ background: 'var(--teal)', color: '#fff', borderRadius: 99, fontSize: 10.5, fontWeight: 700, padding: '1px 7px', flexShrink: 0 }}>
-                            {c.no_leidos}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>{verConversaciones()}</div>
+          ) : verHilo()}
+        </div>
+      )}
+
+      {/* Vista grande: conversaciones a la izquierda, hilo a la derecha */}
+      {abierto && enGrande && (
+        <div
+          onClick={() => setGrande(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(20,20,30,.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(1120px, 100%)', height: 'min(760px, calc(100vh - 52px))',
+              background: 'var(--surface)', borderRadius: 14, overflow: 'hidden',
+              boxShadow: '0 24px 60px rgba(0,0,0,.34)', display: 'flex', flexDirection: 'column',
+            }}
+          >
+            <div style={{ background: 'var(--navy3, var(--navy))', color: '#fff', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ flex: 1, fontSize: 15, fontWeight: 700 }}>Mensajes</div>
+              <button onClick={cambiarSonido} title={conSonido ? 'Silenciar el aviso' : 'Activar el aviso sonoro'}
+                style={botonBarra({ opacity: conSonido ? 1 : .55 })}>
+                <Icono nombre={conSonido ? 'campana' : 'campanaMuda'} size={17} />
+              </button>
+              <button onClick={() => setNueva(true)} title="Nueva conversación" style={botonBarra()}>
+                <Icono nombre="agregar" size={19} />
+              </button>
+              <button onClick={() => setGrande(false)} title="Volver al tamaño chico" style={botonBarra()}>
+                <Icono nombre="achicar" size={16} />
+              </button>
+              <button onClick={cerrarTodo} title="Cerrar" style={botonBarra()}>
+                <Icono nombre="cerrar" size={17} />
+              </button>
             </div>
-          ) : (
-            <>
-              <div
-                onDragOver={(e) => { e.preventDefault(); setArrastrando(true) }}
-                onDragLeave={() => setArrastrando(false)}
-                onDrop={onDrop}
-                style={{
-                  flex: 1, overflowY: 'auto', minHeight: 0, padding: '12px 13px',
-                  background: arrastrando ? 'var(--teal-lt)' : 'var(--bg)',
-                  outline: arrastrando ? '2px dashed var(--teal)' : 'none', outlineOffset: -5,
-                }}
-              >
-                {cargandoHilo ? (
-                  <div className="loading-center" style={{ padding: 30 }}><span className="spin" /></div>
-                ) : mensajes.length === 0 ? (
-                  <div className="empty" style={{ padding: 22, fontSize: 13 }}>Escribí el primer mensaje.</div>
+
+            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+              <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
+                {verConversaciones()}
+              </div>
+
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+                {!activa ? (
+                  <div className="empty" style={{ margin: 'auto', padding: 30 }}>Elegí una conversación.</div>
                 ) : (
-                  mensajes.map((m, i) => {
-                    const mio = m.autor_id === usuario.id
-                    const prev = mensajes[i - 1]
-                    const nuevoDia = !prev || diaDe(prev.fecha_creacion) !== diaDe(m.fecha_creacion)
-                    const mismoAutor = prev && prev.autor_id === m.autor_id && !nuevoDia
-                    return (
-                      <div key={m.id}>
-                        {nuevoDia && (
-                          <div style={{ textAlign: 'center', margin: '10px 0 12px' }}>
-                            <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 10.5, fontWeight: 600, padding: '3px 11px', borderRadius: 99 }}>
-                              {diaDe(m.fecha_creacion)}
-                            </span>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: mio ? 'flex-end' : 'flex-start', marginTop: mismoAutor ? 3 : 8 }}>
-                          <div className="chat-burbuja" style={{
-                            maxWidth: '84%', minWidth: 84, padding: '7px 10px 5px', borderRadius: 12,
-                            background: m.borrado ? 'transparent' : mio ? 'var(--navy)' : 'var(--surface)',
-                            color: mio && !m.borrado ? '#fff' : 'var(--text)',
-                            border: m.borrado ? '1px dashed var(--border)' : mio ? 'none' : '1px solid var(--border)',
-                          }}>
-                            {activa.tipo === 'grupo' && !mio && !mismoAutor && (
-                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal)', marginBottom: 3 }}>{m.autor_nombre}</div>
-                            )}
-
-                            {m.borrado ? (
-                              <div style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic' }}>Mensaje eliminado</div>
-                            ) : (
-                              <>
-                                {m.archivo_url && (esImagen(m) ? (
-                                  <a href={urlArchivo(m.archivo_url)} target="_blank" rel="noreferrer">
-                                    <img src={urlArchivo(m.archivo_url)} alt={m.archivo_nombre}
-                                      style={{ maxWidth: '100%', maxHeight: 230, borderRadius: 8, display: 'block', marginBottom: m.texto ? 6 : 2 }} />
-                                  </a>
-                                ) : (
-                                  <a href={urlArchivo(m.archivo_url)} target="_blank" rel="noreferrer"
-                                    style={{
-                                      display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
-                                      background: mio ? 'rgba(255,255,255,.14)' : 'var(--teal-lt)',
-                                      borderRadius: 8, padding: '7px 9px', marginBottom: m.texto ? 6 : 2,
-                                      color: mio ? '#fff' : 'var(--teal)',
-                                    }}>
-                                    <Icono nombre="doc" size={17} />
-                                    <span style={{ minWidth: 0 }}>
-                                      <span style={{ display: 'block', fontSize: 12, fontWeight: 600, wordBreak: 'break-all' }}>{m.archivo_nombre}</span>
-                                      <span style={{ fontSize: 10.5, opacity: .8 }}>{tamano(m.archivo_tamano)}</span>
-                                    </span>
-                                  </a>
-                                ))}
-
-                                {m.texto && (
-                                  <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.texto}</div>
-                                )}
-                              </>
-                            )}
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 7, marginTop: 2 }}>
-                              {!m.borrado && mio && (
-                                <button className="chat-borrar" onClick={() => borrarMensaje(m)} title="Borrar mensaje"
-                                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0, transition: 'opacity .15s' }}>
-                                  <Icono nombre="borrar" size={11} />
-                                </button>
-                              )}
-                              <span style={{ fontSize: 9.5, opacity: mio && !m.borrado ? .75 : .6 }}>{hora(m.fecha_creacion)}</span>
-                            </div>
-                          </div>
+                  <>
+                    <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {activa.titulo}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {subtituloActiva}
                         </div>
                       </div>
-                    )
-                  })
+                      {botonesDeLaConversacion('var(--muted)')}
+                    </div>
+                    {verHilo()}
+                  </>
                 )}
-                <div ref={finRef} />
               </div>
-
-              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-end' }}>
-                <input ref={inputArchivo} type="file" style={{ display: 'none' }} onChange={(e) => enviarArchivo(e.target.files?.[0])} />
-                <button className="btn btn-ghost btn-sm" onClick={() => inputArchivo.current?.click()} disabled={enviando}
-                  title="Adjuntar un archivo" style={{ padding: '7px 9px' }}>
-                  <Icono nombre="clip" size={15} />
-                </button>
-                <textarea
-                  value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
-                  onPaste={onPaste}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarTexto() } }}
-                  placeholder="Escribí un mensaje"
-                  rows={1}
-                  style={{
-                    flex: 1, resize: 'none', maxHeight: 110, minHeight: 36, padding: '8px 11px',
-                    border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
-                    lineHeight: 1.45, overflowY: 'auto',
-                  }}
-                  onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 110) + 'px' }}
-                />
-                <button className="btn btn-teal btn-sm" onClick={enviarTexto} disabled={enviando || !texto.trim()} style={{ padding: '9px 13px' }}>
-                  Enviar
-                </button>
-              </div>
-            </>
-          )}
+            </div>
+          </div>
         </div>
       )}
 
