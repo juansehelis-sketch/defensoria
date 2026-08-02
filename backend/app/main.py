@@ -23,6 +23,7 @@ from app.api import (
     tareas,
     buscar,
     mapa,
+    chat,
 )
 
 # Crear app
@@ -99,6 +100,7 @@ app.include_router(legajos.router, dependencies=_auth)
 app.include_router(tareas.router, dependencies=_auth)
 app.include_router(buscar.router, dependencies=_auth)
 app.include_router(mapa.router, dependencies=_auth)
+app.include_router(chat.router, dependencies=_auth)
 
 # Inicializar BD al startup
 @app.on_event("startup")

@@ -17,6 +17,7 @@ import Modelos from './pages/Modelos'
 import Legajos from './pages/Legajos'
 import Usuarios from './pages/Usuarios'
 import Mapa from './pages/Mapa'
+import Chat from './pages/Chat'
 import { UIHost } from './ui'
 
 function RutaProtegida({ children }) {
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="audiencias" element={<Audiencias />} />
         <Route path="modelos" element={<Modelos />} />
         <Route path="mapa" element={<Mapa />} />
+        <Route path="chat" element={<Chat />} />
         <Route path="reportes" element={<Reportes />} />
         <Route path="usuarios" element={usuario && ['admin', 'defensora'].includes(usuario.rol) ? <Usuarios /> : <Navigate to="/" replace />} />
       </Route>

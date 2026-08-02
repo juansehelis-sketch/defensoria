@@ -381,3 +381,56 @@ class InternadoLugar(Base):
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     lugar = relationship("LugarMapa", back_populates="internados")
+
+
+class ChatConversacion(Base):
+    """
+    Conversación del chat interno: entre dos personas ("directo") o de varias
+    ("grupo"). Reemplaza el uso de WhatsApp para lo laboral.
+    """
+    __tablename__ = "chat_conversaciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo = Column(String, default="directo", index=True)  # directo | grupo
+    nombre = Column(String, nullable=True)                # solo en grupos
+    creador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+    # Se actualiza con cada mensaje: ordena la lista de conversaciones.
+    fecha_ultimo_mensaje = Column(DateTime, default=datetime.now, index=True)
+
+    miembros = relationship("ChatMiembro", back_populates="conversacion", cascade="all, delete-orphan")
+    mensajes = relationship("ChatMensaje", back_populates="conversacion", cascade="all, delete-orphan")
+
+
+class ChatMiembro(Base):
+    """Participante de una conversación, con su marca de lectura."""
+    __tablename__ = "chat_miembros"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversacion_id = Column(Integer, ForeignKey("chat_conversaciones.id"), index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), index=True)
+    # Id del último mensaje que esta persona ya vio (para los no leídos).
+    ultimo_leido_id = Column(Integer, default=0)
+    fecha_alta = Column(DateTime, default=datetime.now)
+
+    conversacion = relationship("ChatConversacion", back_populates="miembros")
+    usuario = relationship("Usuario")
+
+
+class ChatMensaje(Base):
+    """Mensaje de una conversación: texto, archivo adjunto, o las dos cosas."""
+    __tablename__ = "chat_mensajes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversacion_id = Column(Integer, ForeignKey("chat_conversaciones.id"), index=True)
+    autor_id = Column(Integer, ForeignKey("usuarios.id"))
+    texto = Column(Text, nullable=True)
+    archivo_url = Column(String, nullable=True)
+    archivo_nombre = Column(String, nullable=True)
+    archivo_tipo = Column(String, nullable=True)      # content-type
+    archivo_tamano = Column(Integer, nullable=True)   # bytes
+    borrado = Column(Boolean, default=False)
+    fecha_creacion = Column(DateTime, default=datetime.now, index=True)
+
+    conversacion = relationship("ChatConversacion", back_populates="mensajes")
+    autor = relationship("Usuario")
