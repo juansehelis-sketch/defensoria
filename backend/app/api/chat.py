@@ -113,6 +113,9 @@ def _serializar_conversacion(db: Session, conv: ChatConversacion, yo: Usuario, m
             if m.usuario
         ],
         "ultimo_mensaje": resumen[:120],
+        # El id del último mensaje deja saber al frontend si llegó algo nuevo
+        # (para el aviso sonoro y la notificación del navegador).
+        "ultimo_mensaje_id": (ultimo.id if ultimo else 0),
         "ultimo_autor": (ultimo.autor.nombre if ultimo and ultimo.autor else None),
         "ultimo_autor_id": (ultimo.autor_id if ultimo else None),
         "fecha_ultimo_mensaje": conv.fecha_ultimo_mensaje,
@@ -140,23 +143,6 @@ def _mis_conversaciones(db: Session, yo: Usuario):
 async def listar_conversaciones(db: Session = Depends(get_db), yo: Usuario = Depends(obtener_usuario_actual)):
     """Todas mis conversaciones, con el último mensaje y los no leídos."""
     return [_serializar_conversacion(db, conv, yo, m) for conv, m in _mis_conversaciones(db, yo)]
-
-
-@router.get("/no-leidos")
-async def contar_no_leidos(db: Session = Depends(get_db), yo: Usuario = Depends(obtener_usuario_actual)):
-    """Total de mensajes sin leer (para el aviso del encabezado)."""
-    total = 0
-    for conv, m in _mis_conversaciones(db, yo):
-        total += (
-            db.query(func.count(ChatMensaje.id))
-            .filter(
-                ChatMensaje.conversacion_id == conv.id,
-                ChatMensaje.id > (m.ultimo_leido_id or 0),
-                ChatMensaje.autor_id != yo.id,
-            )
-            .scalar()
-        ) or 0
-    return {"no_leidos": int(total)}
 
 
 @router.post("/directo")
