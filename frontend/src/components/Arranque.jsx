@@ -44,11 +44,8 @@ export default function Arranque({ children }) {
     <div className="loading-center" style={{ minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
       <span className="spin" style={{ width: 30, height: 30, borderWidth: 3 }} />
       <div style={{ textAlign: 'center', maxWidth: 320, padding: '0 20px' }}>
-        <div style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>
+        <div style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>
           Iniciando el sistema
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-          Es el primer ingreso del día: puede tardar uno o dos minutos. No hace falta recargar la página.
         </div>
       </div>
     </div>
