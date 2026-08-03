@@ -34,7 +34,7 @@ export default function Login() {
           <img src="/logo.png" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg' }} alt="Ministerio Público de la Defensa" style={{ height: 64, width: 'auto' }} />
         </div>
         <div className="login-title">Ministerio Público de la Defensa</div>
-        <div className="login-sub">Defensoría de Menores N° 6 · Gestión de expedientes</div>
+        <div className="login-sub">Sistema de gestión</div>
 
         {error && <div className="alert alert-red" style={{ marginBottom: 16 }}>{error}</div>}
 
