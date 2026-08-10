@@ -222,7 +222,7 @@ export default function Audiencias() {
           {cargando ? (
             <div className="loading-center"><span className="spin" /></div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
               {DIAS.map((d) => (
                 <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
               ))}
@@ -232,25 +232,29 @@ export default function Audiencias() {
                 return (
                   <div
                     key={i}
+                    className="cal-celda"
                     onClick={() => d && setDiaSel(d)}
                     style={{
                       minHeight: 76, borderRadius: 8, padding: 6,
-                      border: '1px solid var(--border)',
+                      // Los huecos antes del día 1 no llevan recuadro ni marca
+                      // de selección (sin el "d &&", al no haber día elegido
+                      // quedaban todos remarcados).
+                      border: d ? '1px solid var(--border)' : 'none',
                       background: d ? (esHoy ? 'var(--teal-lt)' : '#fff') : 'transparent',
                       cursor: d ? 'pointer' : 'default',
-                      outline: diaSel === d ? '2px solid var(--teal)' : 'none',
+                      outline: d && diaSel === d ? '2px solid var(--teal)' : 'none',
                     }}
                   >
                     {d && (
                       <>
                         <div style={{ fontSize: 12, fontWeight: 600, color: esHoy ? 'var(--teal)' : 'var(--text)' }}>{d}</div>
                         {items.slice(0, 2).map((a) => (
-                          <div key={a.id} style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: colorQuienVa(a.asignado_a), color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          <div key={a.id} className="cal-evento" style={{ fontSize: 10, marginTop: 2, padding: '1px 4px', borderRadius: 4, background: colorQuienVa(a.asignado_a), color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                             title={`${String(a.hora).slice(0, 5)} · ${a.motivo || ''}${a.asignado_a ? ' · Va: ' + a.asignado_a : ' · Sin asignar'}`}>
                             <b>{String(a.hora).slice(0, 5)}</b> {a.motivo || a.base_legal || `J${a.juzgado}`}
                           </div>
                         ))}
-                        {items.length > 2 && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>+{items.length - 2} más</div>}
+                        {items.length > 2 && <div className="cal-mas" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>+{items.length - 2} más</div>}
                       </>
                     )}
                   </div>

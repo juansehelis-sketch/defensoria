@@ -257,7 +257,10 @@ table.data tbody tr:hover td { background: #fafbfd; }
   .app-header { min-height: 0; height: auto; padding: 6px 10px 7px; flex-wrap: wrap; gap: 6px 8px; }
   .header-logo { font-size: 13px; gap: 6px; flex-shrink: 0; }
   .header-logo img { height: 24px !important; }
+  /* El nombre se oculta: con nombres largos aplastaba el buscador y no aporta
+     (cada uno sabe quién es). Quedan "Mi clave" y "Salir". */
   .header-user { order: 3; gap: 6px; font-size: 11px; flex-shrink: 0; }
+  .header-user > span:first-child { display: none; }
   .header-user .btn { padding: 4px 9px; font-size: 11px; }
 
   .buscador-global { order: 2; flex: 1 1 110px; min-width: 90px; }
@@ -271,6 +274,9 @@ table.data tbody tr:hover td { background: #fafbfd; }
     border-radius: 7px; white-space: normal;
   }
   .nav-tab svg { width: 15px; height: 15px; }
+  /* Quien administra tiene una solapa más (Usuarios): si queda sola en la
+     última fila, va a lo ancho en vez de quedar huérfana en un rincón. */
+  .nav-tab:nth-child(9):last-child { grid-column: 1 / -1; }
 
   /* Páginas y tarjetas con menos margen para aprovechar el ancho.
      El espacio de abajo deja lugar al botón flotante del chat. */
@@ -303,6 +309,20 @@ table.data tbody tr:hover td { background: #fafbfd; }
   .nav-dia .btn { justify-content: center; }
   .nav-dia .nav-dia-fecha { grid-column: 1 / -1; order: -1; }
   .nav-dia input[type="date"] { grid-column: 1 / -1; }
+
+  /* Calendario de audiencias: en el celular no entra el texto de cada
+     audiencia, así que cada una se muestra como una barrita del color de
+     quien va. Tocando el día se ve el detalle completo. */
+  .cal-celda { min-height: 52px !important; padding: 4px !important; }
+  .cal-evento { font-size: 0 !important; height: 5px; padding: 0 !important; margin-top: 3px !important; border-radius: 99px !important; }
+  .cal-mas { font-size: 9px !important; margin-top: 3px !important; }
+
+  /* Tablero de "A la firma": en la computadora las columnas van una al lado de
+     la otra, pero en el celular quedaban cortadas y había que deslizar al
+     costado para ver los otros estados. Se apilan a lo ancho. */
+  .kanban { flex-direction: column; overflow-x: visible; }
+  .kanban-col { min-width: 0; width: 100%; }
+  .kanban-col-body { min-height: 0; }
 
   /* Nueva tarea: el título a lo ancho y debajo la fecha y el botón, para que
      "Agregar" no quede cortado contra el borde. */
