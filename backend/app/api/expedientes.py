@@ -19,6 +19,7 @@ from app.schemas import (
 from app.services.pdf_parser import parsear_pdf_desde_archivo, parsear_listado_de_pases
 from app.config import asignar_expediente
 from app.utils.deps import obtener_usuario_actual
+from app.utils.tiempo import hoy
 
 router = APIRouter(prefix="/api/expedientes", tags=["expedientes"])
 
@@ -276,7 +277,7 @@ async def cancelar_vista(
     if fila is None:
         raise HTTPException(status_code=404, detail="El expediente no tiene filas en el listado")
 
-    hoy_txt = date.today().strftime("%d/%m/%Y")
+    hoy_txt = hoy().strftime("%d/%m/%Y")
     nota = f"Vista cancelada el {hoy_txt}"
     fila.cancelada = True
     # La nota va PRIMERO (antes de los conexos / lo que hubiera)
@@ -541,7 +542,7 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
         agregados = []
         errores = []
         repetidos = []
-        hoy = date.today()
+        hoy = hoy()
 
         for exp_data in expedientes_parseados:
             try:

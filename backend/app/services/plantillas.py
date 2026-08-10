@@ -9,6 +9,7 @@ visible "[completar: ...]" en vez de tirar error.
 
 import re
 from datetime import date
+from app.utils.tiempo import hoy
 
 # ── Catálogo de variables disponibles ──────────────────────────
 # (token, etiqueta legible, grupo) — es la fuente única que también ve el
@@ -87,7 +88,7 @@ def construir_contexto(db, exp) -> dict:
     """Arma el diccionario {token: valor} a partir del expediente y sus datos."""
     from app.models import Usuario
 
-    hoy = date.today()
+    hoy = hoy()
     defs = sorted(exp.defendidos, key=lambda d: d.id) if exp.defendidos else []
     d0 = defs[0] if defs else None
     defensora = db.query(Usuario).filter(Usuario.rol == "defensora").first()

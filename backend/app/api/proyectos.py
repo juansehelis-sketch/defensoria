@@ -28,6 +28,7 @@ from app.models import Proyecto, Expediente, EntradaSalida, Usuario, Notificacio
 from app.schemas import Proyecto as ProyectoSchema
 from app.utils.deps import obtener_usuario_actual
 from app.services import storage
+from app.utils.tiempo import ahora, hoy
 
 router = APIRouter(prefix="/api/proyectos", tags=["proyectos"])
 
@@ -62,7 +63,7 @@ def _entrada_para_estampar(db: Session, expediente: Expediente) -> EntradaSalida
     )
     if entrada is None:
         entrada = EntradaSalida(
-            fecha=date.today(),
+            fecha=hoy(),
             juzgado=expediente.juzgado,
             expediente_id=expediente.id,
             autos=expediente.caratula,
@@ -223,7 +224,7 @@ async def enviar_proyecto(
 
     # Estampar pase a la firma en el listado
     entrada = _entrada_para_estampar(db, expediente)
-    entrada.pase_firma = date.today()
+    entrada.pase_firma = hoy()
 
     proyecto = Proyecto(
         expediente_id=expediente_id,
@@ -237,7 +238,7 @@ async def enviar_proyecto(
         archivos=guardados,
         comentarios=[{
             "autor": usuario.nombre, "rol": usuario.rol,
-            "fecha": datetime.now().isoformat(), "texto": datos or "Proyecto enviado", "tipo": "envio",
+            "fecha": ahora().isoformat(), "texto": datos or "Proyecto enviado", "tipo": "envio",
         }],
     )
     db.add(proyecto)
@@ -281,7 +282,7 @@ async def devolver_con_comentarios(
     p.estado = "en_correccion"
     p.comentarios = (p.comentarios or []) + [{
         "autor": usuario.nombre, "rol": usuario.rol,
-        "fecha": datetime.now().isoformat(), "texto": comentario, "tipo": "devolucion",
+        "fecha": ahora().isoformat(), "texto": comentario, "tipo": "devolucion",
     }]
     db.add(Notificacion(
         usuario_id=p.remitente_id,
@@ -314,12 +315,12 @@ async def reenviar_corregido(
     guardados = _guardar_archivos(archivos)
     p.estado = "enviado"
     p.version = (p.version or 1) + 1
-    p.fecha_envio = datetime.now()
+    p.fecha_envio = ahora()
     if guardados:
         p.archivos = (p.archivos or []) + guardados
     p.comentarios = (p.comentarios or []) + [{
         "autor": usuario.nombre, "rol": usuario.rol,
-        "fecha": datetime.now().isoformat(),
+        "fecha": ahora().isoformat(),
         "texto": comentario or f"Versión corregida (v{p.version})", "tipo": "correccion",
     }]
 
@@ -327,7 +328,7 @@ async def reenviar_corregido(
     if p.entrada_salida_id:
         entrada = db.query(EntradaSalida).filter(EntradaSalida.id == p.entrada_salida_id).first()
         if entrada:
-            entrada.pase_firma = date.today()
+            entrada.pase_firma = hoy()
 
     db.add(Notificacion(
         usuario_id=p.destinatario_id,
@@ -361,10 +362,10 @@ async def reenviar_a_defensora(
 
     p.destinatario_id = defensora.id
     p.estado = "enviado"
-    p.fecha_envio = datetime.now()
+    p.fecha_envio = ahora()
     p.comentarios = (p.comentarios or []) + [{
         "autor": usuario.nombre, "rol": usuario.rol,
-        "fecha": datetime.now().isoformat(),
+        "fecha": ahora().isoformat(),
         "texto": f"Reenviado a la defensora ({defensora.nombre})", "tipo": "envio",
     }]
     db.add(Notificacion(
@@ -405,12 +406,12 @@ async def marcar_subido(
     dictamen_url = guardados[0]["url"] if guardados else None
 
     p.estado = "subido"
-    p.fecha_subido = datetime.now()
+    p.fecha_subido = ahora()
     if guardados:
         p.archivos = (p.archivos or []) + guardados
     p.comentarios = (p.comentarios or []) + [{
         "autor": usuario.nombre, "rol": usuario.rol,
-        "fecha": datetime.now().isoformat(),
+        "fecha": ahora().isoformat(),
         "texto": comentario or "Subió el dictamen al expediente", "tipo": "subido",
     }]
 
@@ -418,7 +419,7 @@ async def marcar_subido(
     if p.entrada_salida_id:
         entrada = db.query(EntradaSalida).filter(EntradaSalida.id == p.entrada_salida_id).first()
         if entrada:
-            entrada.subido_lex = date.today()
+            entrada.subido_lex = hoy()
             entrada.subido_defensa = True
 
     db.add(Notificacion(

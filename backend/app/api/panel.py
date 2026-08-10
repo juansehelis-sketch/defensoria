@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import Expediente, Notificacion, Proyecto, Usuario, Audiencia, EntradaSalida, Tarea
 from app.schemas import Notificacion as NotificacionSchema, EntradaSalida as EntradaSalidaSchema
 from app.utils.deps import obtener_usuario_actual
+from app.utils.tiempo import ahora
 
 router = APIRouter(prefix="/api/panel", tags=["panel"])
 
@@ -52,7 +53,7 @@ async def resumen_panel(
     )
 
     # Próximas audiencias (de los expedientes asignados)
-    hoy = datetime.now().date()
+    hoy = ahora().date()
     proximas_audiencias = (
         db.query(Audiencia)
         .join(Expediente, Audiencia.expediente_id == Expediente.id)
@@ -159,7 +160,7 @@ async def listar_notificaciones(
 ):
     """Lista las notificaciones del usuario (más recientes primero)."""
     # Tareas con fecha: al llegar el día, aparece una novedad (una sola vez).
-    hoy = datetime.now().date()
+    hoy = ahora().date()
     vencen = (
         db.query(Tarea)
         .filter(Tarea.usuario_id == usuario.id)

@@ -14,6 +14,7 @@ from app.schemas import (
     BorradoListado as BorradoListadoSchema,
 )
 from app.utils.deps import obtener_usuario_actual
+from app.utils.tiempo import hoy
 
 router = APIRouter(prefix="/api/entrada-salida", tags=["entrada-salida"])
 
@@ -174,7 +175,7 @@ def _insertar_filas(db, filas):
         numero = (f.get("numero_expediente") or "").replace("*", "").strip()
         if not autos and not numero:
             continue  # fila vacía
-        fecha = _a_fecha(f.get("fecha")) or date.today()
+        fecha = _a_fecha(f.get("fecha")) or hoy()
         asignacion = (f.get("asignacion") or "").strip() or None
 
         # Si la carátula trae la palabra "urgente", se marca la fila como urgente

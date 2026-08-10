@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from datetime import date
 
 from app.config import settings
+from app.utils.tiempo import ahora
 
 
 def mail_configurado() -> bool:
@@ -109,7 +110,7 @@ def iniciar_resumen_diario():
         from app.database import SessionLocal
         ultimo = None  # fecha del último envío, para no repetir el mismo día
         while True:
-            ahora = __import__("datetime").datetime.now()
+            ahora = __import__("datetime").ahora()
             if ahora.hour == settings.RESUMEN_HORA and ultimo != ahora.date():
                 ultimo = ahora.date()
                 db = SessionLocal()

@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Foreign
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
+from app.utils.tiempo import ahora
 
 
 class Usuario(Base):
@@ -23,7 +24,7 @@ class Usuario(Base):
     # Si está en True, al próximo ingreso la app obliga a elegir contraseña nueva.
     debe_cambiar_clave = Column(Boolean, default=False)
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
     # Registro del último ingreso (fecha/hora, IP y ubicación aproximada por IP).
     ultimo_ingreso = Column(DateTime, nullable=True)
     ultimo_ingreso_ip = Column(String, nullable=True)
@@ -50,8 +51,8 @@ class Expediente(Base):
     observaciones = Column(Text)
     resumen = Column(Text)  # Resumen libre del caso (lo mantienen los despachantes)
     ficha = Column(Text, nullable=True)  # Ficha "Historia Social" (JSON editable en pantalla)
-    fecha_creacion = Column(DateTime, default=datetime.now)
-    fecha_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
+    fecha_actualizacion = Column(DateTime, default=ahora, onupdate=ahora)
 
     # Relaciones
     despachante = relationship("Usuario", back_populates="expedientes_asignados", foreign_keys=[despachante_id])
@@ -83,7 +84,7 @@ class EntradaSalida(Base):
     subido_defensa = Column(Boolean, default=False)
     urgente = Column(Boolean, default=False, index=True)
     cancelada = Column(Boolean, default=False)  # vista cancelada → se pinta verde
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     # Relaciones
     expediente = relationship("Expediente", back_populates="entrada_salida")
@@ -104,7 +105,7 @@ class GrillaAsignacion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     datos = Column(JSON, default=dict)  # {titulo, columnas: [{nombre, cargo}], filas: [{objeto, celdas: {nombre: texto}}]}
-    fecha_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    fecha_actualizacion = Column(DateTime, default=ahora, onupdate=ahora)
 
 
 class Historial(Base):
@@ -116,7 +117,7 @@ class Historial(Base):
     descripcion = Column(Text)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     archivo_url = Column(String, nullable=True)  # Ruta del archivo adjunto
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     # Relaciones
     expediente = relationship("Expediente", back_populates="historial")
@@ -141,7 +142,7 @@ class Audiencia(Base):
     asignado_a = Column(String, nullable=True, index=True)   # quién va (defensora/secretarias/servicio social); opcional, se puede cargar después
     asistencia = Column(String, default="pendiente")         # pendiente / va / no_va
     estado = Column(String, default="programada")  # programada, realizada, cancelada
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     # Relaciones
     expediente = relationship("Expediente", back_populates="audiencias")
@@ -174,8 +175,8 @@ class Proyecto(Base):
     comentarios = Column(JSON, default=list)  # [{autor, rol, fecha, texto, tipo}]
     archivos = Column(JSON, default=list)     # [{nombre, url}]
 
-    fecha_creacion = Column(DateTime, default=datetime.now)
-    fecha_envio = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
+    fecha_envio = Column(DateTime, default=ahora)
     fecha_subido = Column(DateTime, nullable=True)
 
     # Relaciones
@@ -211,7 +212,7 @@ class Defendido(Base):
     dni = Column(String, nullable=True)
     vinculo = Column(String, nullable=True)        # rol/parentesco (ej: NNA, progenitor)
     observaciones = Column(Text, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     expediente = relationship("Expediente", back_populates="defendidos")
 
@@ -230,7 +231,7 @@ class Legajo(Base):
     fecha_nacimiento = Column(Date, nullable=True)
     observaciones = Column(Text, nullable=True)
     numeros = Column(JSON, default=list)  # números de expediente del legajo (conexos)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     expedientes = relationship("Expediente", back_populates="legajo")
 
@@ -249,7 +250,7 @@ class CarpetaModelo(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)  # ej: "Sucesiones", "Violencia familiar"
     categoria = Column(String, default="modelos", index=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     plantillas = relationship("Plantilla", back_populates="carpeta", cascade="all, delete-orphan")
 
@@ -265,7 +266,7 @@ class Plantilla(Base):
     archivo_url = Column(String, nullable=True)
     descripcion = Column(Text, nullable=True)   # info sobre el archivo (para buscar)
     etiquetas = Column(String, nullable=True)   # palabras clave separadas por coma (para buscar)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     carpeta = relationship("CarpetaModelo", back_populates="plantillas")
 
@@ -282,7 +283,7 @@ class BorradoListado(Base):
     asignacion = Column(String, nullable=True)
     observaciones = Column(Text, nullable=True)
     borrado_por = Column(String, nullable=True)
-    fecha_borrado = Column(DateTime, default=datetime.now)
+    fecha_borrado = Column(DateTime, default=ahora)
 
 
 class Notificacion(Base):
@@ -294,7 +295,7 @@ class Notificacion(Base):
     contenido = Column(String)
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
     leida = Column(Boolean, default=False)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
 
 class Tarea(Base):
@@ -309,7 +310,7 @@ class Tarea(Base):
     hecha = Column(Boolean, default=False)
     notificada = Column(Boolean, default=False)  # ya se avisó al llegar la fecha
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
 
 class Auditoria(Base):
@@ -322,7 +323,7 @@ class Auditoria(Base):
     accion = Column(String)        # creó / editó / borró / subió / devolvió
     entidad = Column(String)       # listado / expediente / legajo / proyecto / modelo
     detalle = Column(Text, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now, index=True)
+    fecha_creacion = Column(DateTime, default=ahora, index=True)
 
 
 class DiaNoHabil(Base):
@@ -342,7 +343,7 @@ class AdjuntoAudiencia(Base):
     audiencia_id = Column(Integer, ForeignKey("audiencias.id"), index=True)
     nombre = Column(String)
     archivo_url = Column(String)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
 
 class LugarMapa(Base):
@@ -360,7 +361,7 @@ class LugarMapa(Base):
     observaciones = Column(Text, nullable=True)
     lat = Column(Float)
     lng = Column(Float)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     internados = relationship("InternadoLugar", back_populates="lugar", cascade="all, delete-orphan")
 
@@ -378,7 +379,7 @@ class InternadoLugar(Base):
     expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=True)
     expediente_numero = Column(String, nullable=True)   # como lo escribieron (para mostrar)
     observaciones = Column(Text, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
 
     lugar = relationship("LugarMapa", back_populates="internados")
 
@@ -394,9 +395,9 @@ class ChatConversacion(Base):
     tipo = Column(String, default="directo", index=True)  # directo | grupo
     nombre = Column(String, nullable=True)                # solo en grupos
     creador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime, default=ahora)
     # Se actualiza con cada mensaje: ordena la lista de conversaciones.
-    fecha_ultimo_mensaje = Column(DateTime, default=datetime.now, index=True)
+    fecha_ultimo_mensaje = Column(DateTime, default=ahora, index=True)
 
     miembros = relationship("ChatMiembro", back_populates="conversacion", cascade="all, delete-orphan")
     mensajes = relationship("ChatMensaje", back_populates="conversacion", cascade="all, delete-orphan")
@@ -411,7 +412,7 @@ class ChatMiembro(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), index=True)
     # Id del último mensaje que esta persona ya vio (para los no leídos).
     ultimo_leido_id = Column(Integer, default=0)
-    fecha_alta = Column(DateTime, default=datetime.now)
+    fecha_alta = Column(DateTime, default=ahora)
 
     conversacion = relationship("ChatConversacion", back_populates="miembros")
     usuario = relationship("Usuario")
@@ -430,7 +431,7 @@ class ChatMensaje(Base):
     archivo_tipo = Column(String, nullable=True)      # content-type
     archivo_tamano = Column(Integer, nullable=True)   # bytes
     borrado = Column(Boolean, default=False)
-    fecha_creacion = Column(DateTime, default=datetime.now, index=True)
+    fecha_creacion = Column(DateTime, default=ahora, index=True)
 
     conversacion = relationship("ChatConversacion", back_populates="mensajes")
     autor = relationship("Usuario")

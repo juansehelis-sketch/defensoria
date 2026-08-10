@@ -18,6 +18,7 @@ from app.database import get_db
 from app.models import ChatConversacion, ChatMiembro, ChatMensaje, Usuario
 from app.utils.deps import obtener_usuario_actual
 from app.services import storage
+from app.utils.tiempo import ahora
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -178,7 +179,7 @@ async def abrir_directo(
         m = _miembro(db, existente.id, yo.id)
         return _serializar_conversacion(db, existente, yo, m)
 
-    conv = ChatConversacion(tipo="directo", creador_id=yo.id, fecha_ultimo_mensaje=datetime.now())
+    conv = ChatConversacion(tipo="directo", creador_id=yo.id, fecha_ultimo_mensaje=ahora())
     db.add(conv)
     db.flush()
     db.add(ChatMiembro(conversacion_id=conv.id, usuario_id=yo.id))
@@ -203,7 +204,7 @@ async def crear_grupo(
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="Elegí al menos una persona más")
 
-    conv = ChatConversacion(tipo="grupo", nombre=nombre, creador_id=yo.id, fecha_ultimo_mensaje=datetime.now())
+    conv = ChatConversacion(tipo="grupo", nombre=nombre, creador_id=yo.id, fecha_ultimo_mensaje=ahora())
     db.add(conv)
     db.flush()
     for uid in ids:
@@ -300,7 +301,7 @@ def _registrar(db: Session, conv: ChatConversacion, msg: ChatMensaje, mi_miembro
     """Guarda el mensaje, mueve la conversación arriba y me lo marca como leído."""
     db.add(msg)
     db.flush()
-    conv.fecha_ultimo_mensaje = msg.fecha_creacion or datetime.now()
+    conv.fecha_ultimo_mensaje = msg.fecha_creacion or ahora()
     mi_miembro.ultimo_leido_id = msg.id
     db.commit()
     db.refresh(msg)
@@ -322,7 +323,7 @@ async def enviar_mensaje(
         raise HTTPException(status_code=400, detail="El mensaje es demasiado largo")
 
     conv = db.query(ChatConversacion).filter(ChatConversacion.id == conversacion_id).first()
-    msg = ChatMensaje(conversacion_id=conversacion_id, autor_id=yo.id, texto=texto, fecha_creacion=datetime.now())
+    msg = ChatMensaje(conversacion_id=conversacion_id, autor_id=yo.id, texto=texto, fecha_creacion=ahora())
     _registrar(db, conv, msg, m)
     return _serializar_mensaje(msg)
 
@@ -359,7 +360,7 @@ async def enviar_archivo(
         archivo_nombre=archivo.filename,
         archivo_tipo=archivo.content_type,
         archivo_tamano=len(datos),
-        fecha_creacion=datetime.now(),
+        fecha_creacion=ahora(),
     )
     _registrar(db, conv, msg, m)
     return _serializar_mensaje(msg)

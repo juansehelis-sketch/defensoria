@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import io
 from app.database import get_db
 from app.models import Expediente, Historial, Usuario, Audiencia, Proyecto, EntradaSalida
+from app.utils.tiempo import ahora
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
 
@@ -38,7 +39,7 @@ async def expedientes_sin_movimiento(
     """
     Expedientes activos que no tuvieron ninguna intervención en los últimos X días.
     """
-    limite = datetime.now() - timedelta(days=dias)
+    limite = ahora() - timedelta(days=dias)
 
     expedientes = db.query(Expediente).filter(Expediente.estado == "activo").all()
     sin_movimiento = []
@@ -58,7 +59,7 @@ async def expedientes_sin_movimiento(
                 "caratula": exp.caratula,
                 "juzgado": exp.juzgado,
                 "ultima_intervencion": str(ultima) if ultima else None,
-                "dias_sin_movimiento": (datetime.now() - referencia).days,
+                "dias_sin_movimiento": (ahora() - referencia).days,
             })
 
     sin_movimiento.sort(key=lambda x: x["dias_sin_movimiento"], reverse=True)
@@ -402,7 +403,7 @@ async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _
     por_juzgado = [{"juzgado": j, "cantidad": c} for j, c in juzgados.most_common()]
 
     # Evolución de los últimos 12 meses (independiente del período elegido)
-    hoy = _date.today()
+    hoy = _hoy()
     evolucion = []
     a, m = hoy.year, hoy.month
     for _ in range(12):

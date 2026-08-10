@@ -16,6 +16,7 @@ ADMIN_USUARIOS = ("admin", "defensora")
 # Único usuario que puede ver los ingresos (fecha/hora/IP/ubicación) del equipo.
 EMAIL_VE_INGRESOS = "jheliszkowski@mpd.gov.ar"
 from app.config import settings
+from app.utils.tiempo import ahora
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
@@ -68,7 +69,7 @@ async def login(usuario_login: UsuarioLogin, request: Request, db: Session = Dep
     # Registrar el ingreso. La ubicación se resuelve después (al mirar el panel),
     # para no demorar el login con una llamada externa: guardamos fecha/hora e IP,
     # y limpiamos la ubicación para que se recalcule con la IP nueva.
-    usuario.ultimo_ingreso = datetime.now()
+    usuario.ultimo_ingreso = ahora()
     usuario.ultimo_ingreso_ip = _ip_de(request)
     usuario.ultimo_ingreso_lugar = None
     db.commit()
