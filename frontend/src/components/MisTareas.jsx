@@ -38,7 +38,7 @@ export default function MisTareas() {
         <button className="btn btn-ghost btn-sm" onClick={() => setVerHechas((v) => !v)}>{verHechas ? 'Ocultar hechas' : 'Ver hechas'}</button>
       </div>
       <div className="card-body">
-        <div className="row" style={{ gap: 8, flexWrap: 'nowrap', marginBottom: 12 }}>
+        <div className="row tarea-nueva" style={{ gap: 8, flexWrap: 'nowrap', marginBottom: 12 }}>
           <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nueva tarea..." onKeyDown={(e) => e.key === 'Enter' && agregar()} style={{ flex: 1 }} />
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ width: 160 }} title="Fecha límite (opcional)" />
           <button className="btn btn-teal" onClick={agregar}>Agregar</button>

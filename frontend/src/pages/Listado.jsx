@@ -217,17 +217,17 @@ export default function Listado() {
       {/* Navegador de día */}
       {!verTodas && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <div className="card-body" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div className="card-body nav-dia" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => cambiarDia(-1)}>← Día anterior</button>
-            <div style={{ textAlign: 'center', minWidth: 230 }}>
+            <div className="nav-dia-fecha" style={{ textAlign: 'center', minWidth: 230 }}>
               <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)' }}>{diaLargo(dia)}</div>
               {esHoy && <div className="tl-meta" style={{ color: 'var(--teal)' }}>Hoy</div>}
             </div>
             <button className="btn btn-ghost btn-sm" onClick={() => cambiarDia(1)}>Día siguiente →</button>
-            <span style={{ width: 1, height: 24, background: 'var(--border)' }} />
+            <span className="sep-vertical" style={{ width: 1, height: 24, background: 'var(--border)' }} />
             <input type="date" value={diaISO} onChange={(e) => { if (e.target.value) { const p = new Date(e.target.value + 'T00:00:00'); setDia(esHabil(p) ? p : diaHabilDesde(p, -1)) } }} style={{ padding: '6px 9px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }} />
             {!esHoy && <button className="btn btn-ghost btn-sm" onClick={irHoy}>Ir a hoy</button>}
-            <span style={{ width: 1, height: 24, background: 'var(--border)' }} />
+            <span className="sep-vertical" style={{ width: 1, height: 24, background: 'var(--border)' }} />
             <button className="btn btn-ghost btn-sm" onClick={ocultarDia} style={{ color: 'var(--muted)', fontSize: 12 }} title="Ocultar este día (feriado/asueto)">Ocultar este día</button>
           </div>
         </div>

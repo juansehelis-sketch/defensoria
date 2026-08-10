@@ -328,7 +328,7 @@ export default function ChatFlotante() {
   function verConversaciones() {
     if (conversaciones.length === 0) {
       return (
-        <div className="empty" style={{ padding: '34px 18px', fontSize: 13 }}>
+        <div className="empty" style={{ margin: 'auto', padding: '28px 18px', fontSize: 13 }}>
           Todavía no hay conversaciones.
           <br />
           <button className="btn btn-teal btn-sm" style={{ marginTop: 12 }} onClick={() => setNueva(true)}>
@@ -519,13 +519,22 @@ export default function ChatFlotante() {
 
   if (!usuario) return null
 
-  const anchoPanel = angosto ? 'calc(100vw - 24px)' : 384
-  const altoPanel = angosto ? 'calc(100vh - 130px)' : 'min(620px, calc(100vh - 150px))'
+  // En el celular el chat ocupa toda la pantalla (como cualquier app de
+  // mensajes); en la computadora es el panel chico de la esquina.
+  const panelChico = abierto && !enGrande
+  const estiloPanel = angosto
+    ? { inset: 0, width: 'auto', height: 'auto', borderRadius: 0, border: 'none' }
+    : {
+        right: 22, bottom: 88, width: 384,
+        height: 'min(620px, calc(100vh - 150px))',
+        borderRadius: 14, border: '1px solid var(--border)',
+      }
 
   return (
     <>
-      {/* Botón flotante */}
-      {!enGrande && (
+      {/* Botón flotante. En el celular se esconde con el chat abierto:
+          el panel ocupa toda la pantalla y ya tiene su propia cruz. */}
+      {!enGrande && !(abierto && angosto) && (
         <button
           onClick={() => (abierto ? cerrarTodo() : abrirPanel())}
           title={abierto ? 'Cerrar el chat' : 'Chat del equipo'}
@@ -552,13 +561,13 @@ export default function ChatFlotante() {
       )}
 
       {/* Panel chico */}
-      {abierto && !enGrande && (
+      {panelChico && (
         <div style={{
-          position: 'fixed', right: angosto ? 12 : 22, bottom: 88, zIndex: 400,
-          width: anchoPanel, height: altoPanel,
-          background: 'var(--surface)', borderRadius: 14, overflow: 'hidden',
-          boxShadow: '0 18px 50px rgba(0,0,0,.3)', border: '1px solid var(--border)',
+          position: 'fixed', zIndex: 400,
+          background: 'var(--surface)', overflow: 'hidden',
+          boxShadow: '0 18px 50px rgba(0,0,0,.3)',
           display: 'flex', flexDirection: 'column',
+          ...estiloPanel,
         }}>
           <div style={{ background: 'var(--navy3, var(--navy))', color: '#fff', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
             {activa && (
@@ -599,7 +608,7 @@ export default function ChatFlotante() {
           </div>
 
           {!activa ? (
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>{verConversaciones()}</div>
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>{verConversaciones()}</div>
           ) : verHilo()}
         </div>
       )}

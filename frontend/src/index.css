@@ -251,19 +251,65 @@ table.data tbody tr:hover td { background: #fafbfd; }
 @media (max-width: 760px) {
   html, body, #root { font-size: 13.5px; }
 
-  /* Header: logo + usuario arriba (una fila), pestañas debajo (a lo ancho). */
-  .app-header { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px 10px; }
-  .header-logo { font-size: 13.5px; gap: 7px; }
-  .header-user { order: 2; gap: 8px; font-size: 11px; }
-  .main-nav { order: 3; width: 100%; gap: 4px; justify-content: flex-start; }
-  .nav-tab { padding: 6px 10px; font-size: 12.5px; gap: 6px; }
+  /* ── Encabezado ──
+     Dos filas: (logo + buscador + usuario) y las solapas en una grilla pareja
+     de 4. Antes eran cuatro filas desparejas que se comían media pantalla. */
+  .app-header { min-height: 0; height: auto; padding: 6px 10px 7px; flex-wrap: wrap; gap: 6px 8px; }
+  .header-logo { font-size: 13px; gap: 6px; flex-shrink: 0; }
+  .header-logo img { height: 24px !important; }
+  .header-user { order: 3; gap: 6px; font-size: 11px; flex-shrink: 0; }
+  .header-user .btn { padding: 4px 9px; font-size: 11px; }
 
-  /* Páginas y tarjetas con menos margen para aprovechar el ancho. */
-  .page { padding: 14px 12px 44px; }
+  .buscador-global { order: 2; flex: 1 1 110px; min-width: 90px; }
+  /* 16px evita que el celular haga zoom solo al tocar el buscador. */
+  .buscador-global input { font-size: 16px !important; padding: 6px 8px 6px 28px !important; }
+
+  .main-nav { order: 4; width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .nav-tab {
+    flex-direction: column; justify-content: center; gap: 2px;
+    padding: 5px 2px; font-size: 9.8px; line-height: 1.15; text-align: center;
+    border-radius: 7px; white-space: normal;
+  }
+  .nav-tab svg { width: 15px; height: 15px; }
+
+  /* Páginas y tarjetas con menos margen para aprovechar el ancho.
+     El espacio de abajo deja lugar al botón flotante del chat. */
+  .page { padding: 14px 12px 96px; }
   .page-title { font-size: 1.15rem; }
   .page-header { gap: 10px; margin-bottom: 14px; }
   .card-header { padding: 11px 14px; }
   .card-body { padding: 14px; }
+
+  /* Botonera del encabezado de página: dos columnas parejas en vez de
+     botones de anchos distintos amontonados. La acción principal (la
+     resaltada) va a lo ancho, así queda clara cuál es. */
+  .page-header > .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+  .page-header > .row > .btn { width: 100%; justify-content: center; }
+  .page-header > .row > .btn-teal, .page-header > .row > .btn-navy { grid-column: 1 / -1; }
+
+  /* Las tarjetas que van de a dos en la computadora pasan a una sola columna
+     (el estilo va en línea en el JSX, por eso el !important). */
+  .dash-grid { grid-template-columns: 1fr !important; }
+
+  /* Carteles de "sin datos": no dejan tarjetas enormes casi vacías. */
+  .empty { padding: 24px 16px; }
+  .loading-center { padding: 34px; }
+
+  /* Navegador de día del listado: la fecha arriba y los botones de a dos,
+     sin separadores verticales sueltos ni una torre de botones. */
+  .nav-dia { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; }
+  .nav-dia > * { width: 100%; min-width: 0 !important; }
+  .nav-dia .sep-vertical { display: none; }
+  .nav-dia .btn { justify-content: center; }
+  .nav-dia .nav-dia-fecha { grid-column: 1 / -1; order: -1; }
+  .nav-dia input[type="date"] { grid-column: 1 / -1; }
+
+  /* Nueva tarea: el título a lo ancho y debajo la fecha y el botón, para que
+     "Agregar" no quede cortado contra el borde. */
+  .tarea-nueva { flex-wrap: wrap !important; }
+  .tarea-nueva > input:first-child { flex: 1 1 100% !important; }
+  .tarea-nueva > input[type="date"] { width: auto !important; flex: 1 1 130px; }
+  .tarea-nueva > .btn { flex: 0 0 auto; }
 
   /* Tablas: más compactas; siguen deslizándose en horizontal con el dedo. */
   table.data thead th, table.data td { padding: 8px 10px; }
