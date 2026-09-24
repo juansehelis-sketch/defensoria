@@ -542,7 +542,7 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
         agregados = []
         errores = []
         repetidos = []
-        hoy = hoy()
+        hoy_fecha = hoy()
 
         for exp_data in expedientes_parseados:
             try:
@@ -565,7 +565,7 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
                         caratula=exp_data["caratula"],
                         estado="activo",
                         despachante_id=despachante.id if despachante else None,
-                        fecha_entrada=hoy,
+                        fecha_entrada=hoy_fecha,
                         observaciones="",
                         conexos=[],
                     )
@@ -587,8 +587,8 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
                     .order_by(EntradaSalida.fecha.desc())
                     .first()
                 )
-                if previa and previa.fecha and previa.fecha <= hoy:
-                    if previa.fecha < hoy and anotar_vista_repetida(db, previa, hoy, False, exp_data["asignacion_final"]):
+                if previa and previa.fecha and previa.fecha <= hoy_fecha:
+                    if previa.fecha < hoy_fecha and anotar_vista_repetida(db, previa, hoy_fecha, False, exp_data["asignacion_final"]):
                         repetidos.append(exp_data["numero"])
                     db.commit()
                     continue
@@ -598,7 +598,7 @@ async def crear_expedientes_desde_pdf(file: UploadFile = File(...), db: Session 
                 # (que puede venir recortada por el formato del listado).
                 caratula_completa = expediente.caratula or exp_data["caratula"]
                 db.add(EntradaSalida(
-                    fecha=hoy,
+                    fecha=hoy_fecha,
                     juzgado=exp_data["juzgado"] or juzgado,
                     expediente_id=expediente.id,
                     autos=caratula_completa,

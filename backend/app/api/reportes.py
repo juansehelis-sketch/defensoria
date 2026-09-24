@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import io
 from app.database import get_db
 from app.models import Expediente, Historial, Usuario, Audiencia, Proyecto, EntradaSalida
-from app.utils.tiempo import ahora
+from app.utils.tiempo import ahora, hoy
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
 
@@ -403,9 +403,9 @@ async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _
     por_juzgado = [{"juzgado": j, "cantidad": c} for j, c in juzgados.most_common()]
 
     # Evolución de los últimos 12 meses (independiente del período elegido)
-    hoy = _hoy()
+    hoy_fecha = hoy()
     evolucion = []
-    a, m = hoy.year, hoy.month
+    a, m = hoy_fecha.year, hoy_fecha.month
     for _ in range(12):
         i0 = _date(a, m, 1)
         f0 = _date(a + (1 if m == 12 else 0), 1 if m == 12 else m + 1, 1)

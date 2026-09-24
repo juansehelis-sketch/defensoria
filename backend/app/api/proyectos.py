@@ -26,7 +26,7 @@ import uuid
 from app.database import get_db
 from app.models import Proyecto, Expediente, EntradaSalida, Usuario, Notificacion, Historial
 from app.schemas import Proyecto as ProyectoSchema
-from app.utils.deps import obtener_usuario_actual
+from app.utils.deps import obtener_usuario_actual, requerir_rol
 from app.services import storage
 from app.utils.tiempo import ahora, hoy
 
@@ -441,3 +441,18 @@ async def marcar_subido(
     db.commit()
     db.refresh(p)
     return p
+
+
+@router.delete("/{proyecto_id}")
+async def eliminar_proyecto(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    _actual: Usuario = Depends(requerir_rol("admin", "defensora")),
+):
+    """Borra un proyecto 'a la firma' (administradores / defensora). Pensado
+    para corregir datos de prueba; no afecta el 'Pase a la firma' / 'Subido al
+    Lex' ya estampados en el listado."""
+    p = _get_proyecto(db, proyecto_id)
+    db.delete(p)
+    db.commit()
+    return {"ok": True}

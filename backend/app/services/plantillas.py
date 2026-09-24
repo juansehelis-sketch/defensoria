@@ -88,7 +88,7 @@ def construir_contexto(db, exp) -> dict:
     """Arma el diccionario {token: valor} a partir del expediente y sus datos."""
     from app.models import Usuario
 
-    hoy = hoy()
+    hoy_fecha = hoy()
     defs = sorted(exp.defendidos, key=lambda d: d.id) if exp.defendidos else []
     d0 = defs[0] if defs else None
     defensora = db.query(Usuario).filter(Usuario.rol == "defensora").first()
@@ -108,18 +108,18 @@ def construir_contexto(db, exp) -> dict:
         "defendidos": ", ".join(d.nombre for d in defs if d.nombre) if defs else "",
         "dni": (d0.dni if d0 else "") or "",
         "fecha_nacimiento": fecha_en_letras(d0.fecha_nacimiento) if d0 else "",
-        "edad": _edad(d0.fecha_nacimiento, hoy) if d0 else "",
+        "edad": _edad(d0.fecha_nacimiento, hoy_fecha) if d0 else "",
         "vinculo": (d0.vinculo if d0 else "") or "",
         "defensora": defensora.nombre if defensora else "",
         "defensoria": DEPENDENCIA,
         "ciudad": CIUDAD,
-        "fecha": fecha_en_letras(hoy),
+        "fecha": fecha_en_letras(hoy_fecha),
     }
     # Defendidos numerados (1..6): generalmente hay más de uno.
     for i in range(1, 7):
         d = defs[i - 1] if i - 1 < len(defs) else None
         ctx[f"defendido{i}"] = (d.nombre if d else "") or ""
-        ctx[f"edad{i}"] = _edad(d.fecha_nacimiento, hoy) if d else ""
+        ctx[f"edad{i}"] = _edad(d.fecha_nacimiento, hoy_fecha) if d else ""
         ctx[f"dni{i}"] = (d.dni if d else "") or ""
         ctx[f"vinculo{i}"] = (d.vinculo if d else "") or ""
         ctx[f"nacimiento{i}"] = fecha_en_letras(d.fecha_nacimiento) if d else ""
