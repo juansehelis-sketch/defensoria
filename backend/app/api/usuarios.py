@@ -199,6 +199,25 @@ async def reiniciar_todas_las_claves(
     return {"ok": True, "marcados": n}
 
 
+@router.post("/vaciar-historial")
+async def vaciar_papelera_y_auditoria(
+    db: Session = Depends(get_db),
+    _actual: Usuario = Depends(requerir_rol(*ADMIN_USUARIOS)),
+):
+    """
+    Vacía la Papelera del listado y el Historial de cambios (Auditoría).
+    Ninguna de las dos se vacía sola al borrar algo: guardan una copia de todo
+    lo que se borró, aunque el dato ya no exista. Útil antes de mostrarle el
+    sistema a alguien nuevo, para no dejar restos de pruebas o de casos viejos.
+    No toca nada del trabajo actual (expedientes, audiencias, proyectos, etc.).
+    """
+    from app.models import BorradoListado, Auditoria
+    n_papelera = db.query(BorradoListado).delete(synchronize_session=False)
+    n_auditoria = db.query(Auditoria).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "papelera": n_papelera, "auditoria": n_auditoria}
+
+
 @router.get("/ingresos")
 async def ver_ingresos(
     db: Session = Depends(get_db),
@@ -278,12 +297,20 @@ async def actualizar_usuario(
     db: Session = Depends(get_db),
     actual: Usuario = Depends(requerir_rol(*ADMIN_USUARIOS)),
 ):
-    """Edita nombre / rol / activo de un usuario (administradores / defensora)."""
+    """Edita nombre / email / rol / activo de un usuario (administradores / defensora)."""
     u = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if datos.nombre is not None:
         u.nombre = datos.nombre.strip()
+    if datos.email is not None:
+        nuevo_email = datos.email.strip()
+        if not nuevo_email:
+            raise HTTPException(status_code=400, detail="El usuario no puede quedar vacío.")
+        existente = db.query(Usuario).filter(Usuario.email == nuevo_email, Usuario.id != usuario_id).first()
+        if existente:
+            raise HTTPException(status_code=400, detail="Ese usuario ya está en uso.")
+        u.email = nuevo_email
     if datos.rol is not None:
         u.rol = datos.rol
     if datos.cargo is not None:

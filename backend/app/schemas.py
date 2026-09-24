@@ -28,6 +28,7 @@ class UsuarioCreate(UsuarioBase):
 
 class UsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
+    email: Optional[str] = None
     rol: Optional[str] = None
     cargo: Optional[str] = None
     activo: Optional[bool] = None

@@ -45,6 +45,20 @@ export default function Usuarios() {
     catch (e) { setError(e.message); cargar() }
   }
 
+  async function vaciarHistorial() {
+    const ok = await confirmar({
+      titulo: 'Vaciar papelera y auditoría',
+      mensaje: 'Borra para siempre la Papelera del listado y el Historial de cambios (Auditoría). No toca expedientes, audiencias ni proyectos actuales — solo el registro de lo que ya se borró antes. Útil antes de mostrarle el sistema a alguien nuevo. ¿Continuar?',
+      ok: 'Vaciar',
+      peligro: true,
+    })
+    if (!ok) return
+    try {
+      const r = await api('/api/usuarios/vaciar-historial', { method: 'POST' })
+      avisar(`Listo: se borraron ${r.papelera} fila(s) de la papelera y ${r.auditoria} del historial.`)
+    } catch (e) { avisar(e.message, 'error') }
+  }
+
   async function reiniciarClaves() {
     const ok = await confirmar({
       titulo: 'Reiniciar todas las contraseñas',
@@ -132,6 +146,16 @@ export default function Usuarios() {
             Cada persona entra una vez más con su contraseña actual y elige una nueva antes de seguir. Tu propia contraseña no cambia.
           </p>
           <button className="btn btn-navy" onClick={reiniciarClaves}>Reiniciar todas las contraseñas</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-header"><span className="card-title"><Icono nombre="borrar" size={16} color="var(--teal)" /> Vaciar papelera y auditoría</span></div>
+        <div className="card-body">
+          <p style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 0 }}>
+            Borra para siempre la Papelera del listado y el Historial de cambios. No toca el trabajo actual, solo lo que ya se borró antes.
+          </p>
+          <button className="btn btn-ghost" onClick={vaciarHistorial}>Vaciar papelera y auditoría</button>
         </div>
       </div>
 
