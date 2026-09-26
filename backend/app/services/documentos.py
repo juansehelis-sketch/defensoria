@@ -181,7 +181,7 @@ _BLOQUE_OK = {"p": "p", "div": "p", "section": "p", "article": "p", "h1": "h2", 
               "ul": "ul", "ol": "ol", "table": "table", "thead": "tbody", "tbody": "tbody",
               "tfoot": "tbody", "tr": "tr", "td": "td", "th": "td"}
 _CONTENEDORES = {"root", "html", "body", "ul", "ol", "table", "thead", "tbody", "tfoot", "tr", "blockquote"}
-_SRC_OK = re.compile(r"^/uploads/[0-9a-f]{32}\.(png|jpg|gif)$")
+_SRC_OK = re.compile(r"^/uploads/[0-9a-f]{32}\.(png|jpg|gif|svg)$")
 _IMG_OK = re.compile(r"^\d+:\d+$")
 
 
@@ -253,6 +253,9 @@ def _serializar(nodo: _Nodo, out: list):
             out.append(f"<{tag}>")
             _serializar(h, out)
             out.append(f"</{tag}>")
+        elif t == "span" and _IMG_OK.match(h.attrs.get("data-img", "")):
+            txt = re.sub(r"\s+", " ", _texto_nodo(h)).strip()[:60] or "forma"
+            out.append(f'<span data-img="{h.attrs["data-img"]}" class="forma" contenteditable="false">{escape(txt)}</span>')
         elif t == "span":
             est = _estilo(h.attrs)
             envolver = []
@@ -295,6 +298,10 @@ def _serializar(nodo: _Nodo, out: list):
         else:
             # Etiqueta desconocida (a, font...): se queda solo el contenido
             _serializar(h, out)
+
+
+def _texto_nodo(n) -> str:
+    return "".join(h.texto if h.tag is None else _texto_nodo(h) for h in n.hijos)
 
 
 def sanitizar(html: str) -> str:
@@ -396,6 +403,8 @@ def _recorrer(nodo, arm: _Armador, fmt: dict, props: dict, ctx_lista=None):
                 est = _estilo(h.attrs)
                 arm.imagen({"img": clave, "src": h.attrs.get("data-src") or None,
                             "w": _medida_pt(est.get("width")), "h": _medida_pt(est.get("height"))}, props)
+        elif t == "span" and _IMG_OK.match(h.attrs.get("data-img", "")):
+            arm.imagen({"img": h.attrs["data-img"], "src": None, "w": None, "h": None}, props)
         elif t in _INLINE_FMT or t == "span":
             f = dict(fmt)
             if t in _INLINE_FMT:
@@ -624,7 +633,9 @@ _CACHE_PREVIEW = {}
 
 
 def _url_preview(blob: bytes, nombre_parte: str) -> str | None:
-    """Sube una copia visible (PNG/JPG) de la imagen y devuelve /uploads/<hash>.ext."""
+    """Sube una copia visible de la imagen y devuelve /uploads/<hash>.ext.
+    EMF/WMF (formato viejo de Word, típico del escudo del membrete) se pasan a SVG
+    con LibreOffice para que se vean nítidos; si no hay LibreOffice, a PNG."""
     from app.services import storage
     clave = hashlib.sha1(blob).hexdigest()[:32]
     if clave in _CACHE_PREVIEW:
@@ -633,23 +644,29 @@ def _url_preview(blob: bytes, nombre_parte: str) -> str | None:
     datos, ext_out = None, None
     if ext in (".png", ".gif", ".jpg", ".jpeg"):
         datos, ext_out = blob, (".jpg" if ext == ".jpeg" else ext)
-    else:
+    elif ext in (".emf", ".wmf") and _soffice():
+        datos, ext_out = convertir_libreoffice(blob, ext, "svg", timeout=40), ".svg"
+    if not datos:
         try:
             from PIL import Image
-            img = Image.open(io.BytesIO(blob))  # EMF/WMF solo se puede en Windows
+            img = Image.open(io.BytesIO(blob))
+            if ext in (".emf", ".wmf"):
+                try:
+                    img.load(dpi=200)  # solo en Windows: más resolución
+                except Exception:
+                    pass
             buf = io.BytesIO()
             img.save(buf, "PNG")
             datos, ext_out = buf.getvalue(), ".png"
         except Exception:
-            if ext in (".emf", ".wmf"):
-                datos = convertir_libreoffice(blob, ext, "png", timeout=40)
-                ext_out = ".png"
+            datos = None
     if not datos:
         _CACHE_PREVIEW[clave] = None
         return None
     nombre = f"{clave}{ext_out}"
+    tipos = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "svg": "image/svg+xml"}
     try:
-        storage.guardar(nombre, datos, {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif"}[ext_out[1:]])
+        storage.guardar(nombre, datos, tipos[ext_out[1:]])
     except Exception as e:
         print(f"[!] No se pudo guardar la vista previa de una imagen: {e}")
         return None
@@ -658,8 +675,24 @@ def _url_preview(blob: bytes, nombre_parte: str) -> str | None:
     return url
 
 
+def _tam_vml(r_el):
+    """Ancho y alto (pt) de una imagen VML (<v:shape style="width:..;height:..">)."""
+    for forma in r_el.iter(f"{{{_NS_V}}}shape", f"{{{_NS_V}}}rect"):
+        est = {}
+        for x in (forma.get("style") or "").split(";"):
+            if ":" in x:
+                k, v = x.split(":", 1)
+                est[k.strip().lower()] = v.strip()
+        w, h = _medida_pt(est.get("width")), _medida_pt(est.get("height"))
+        if w and h:
+            return w, h
+    return None, None
+
+
 def _img_html(r_el, part, clave: str, previews: bool) -> str:
-    """<img> que representa un run con dibujo (la imagen real queda en el Word)."""
+    """Representa un run con dibujo. La imagen real queda en el Word: acá solo se
+    muestra. Los cuadros de texto (ej. "USO OFICIAL" en el margen) se muestran
+    como una etiqueta chica al costado, para no correr el texto."""
     blob, nombre = None, ""
     for blip in r_el.iter(f"{{{_NS_A}}}blip"):
         rid = blip.get(f"{{{_NS_R}}}embed")
@@ -674,14 +707,30 @@ def _img_html(r_el, part, clave: str, previews: bool) -> str:
                 p = part.related_parts[rid]
                 blob, nombre = p.blob, str(p.partname)
                 break
+    dimg = f' data-img="{clave}"' if clave else ""
+
+    if blob is None:
+        # Cuadro de texto o forma: etiqueta con su texto (una sola vez: Word lo
+        # guarda repetido para versiones viejas)
+        caja = next(r_el.iter(_qn("w:txbxContent")), None)
+        texto = ""
+        if caja is not None:
+            texto = " ".join("".join(t.text or "" for t in p.iter(_qn("w:t"))) for p in caja.iter(_qn("w:p")))
+            texto = re.sub(r"\s+", " ", texto).strip()
+        return f'<span{dimg} class="forma" contenteditable="false">{escape(texto[:60] or "forma")}</span>'
+
     estilo = []
     ext = next(r_el.iter(f"{{{_NS_WP}}}extent"), None)
+    w = h = None
     if ext is not None:
         try:
-            estilo.append(f"width:{round(int(ext.get('cx')) / 12700, 1)}pt")
-            estilo.append(f"height:{round(int(ext.get('cy')) / 12700, 1)}pt")
+            w, h = round(int(ext.get("cx")) / 12700, 1), round(int(ext.get("cy")) / 12700, 1)
         except (TypeError, ValueError):
             pass
+    if not w:
+        w, h = _tam_vml(r_el)
+    if w and h:
+        estilo += [f"width:{w}pt", f"height:{h}pt"]
     ancla = next(r_el.iter(f"{{{_NS_WP}}}anchor"), None)
     if ancla is not None:
         # Imagen flotante (ej. el sello al lado de la fecha): se muestra aparte
@@ -694,14 +743,12 @@ def _img_html(r_el, part, clave: str, previews: bool) -> str:
         elif off is not None and (off.text or "").lstrip("-").isdigit() and int(off.text) > 0:
             estilo.append(f"margin-left:{round(int(off.text) / 12700, 1)}pt")
     src = ""
-    if blob is not None and previews:
+    if previews:
         url = _url_preview(blob, nombre)
         if url:
             src = f' data-src="{url}"'
-    alt = "imagen" if blob is not None else "forma"
     st = f' style="{";".join(estilo)}"' if estilo else ""
-    dimg = f' data-img="{clave}"' if clave else ""
-    return f'<img{dimg}{src}{st} alt="{alt}" contenteditable="false">'
+    return f'<img{dimg}{src}{st} alt="imagen" contenteditable="false">'
 
 
 class _Padre:

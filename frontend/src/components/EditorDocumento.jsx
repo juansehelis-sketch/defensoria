@@ -116,7 +116,8 @@ const CSS = `
 .hoja-membrete.enc { border-bottom: 1px dotted #ccc; padding-bottom: 8px; margin-bottom: 18px; }
 .hoja-membrete.pie { border-top: 1px dotted #ccc; padding-top: 8px; margin-top: 24px; font-size: .85em; }
 .hoja img { max-width: 100%; }
-.hoja img:not([src]) { display: inline-block; min-width: 60px; min-height: 24px; border: 1px dashed #bbb; background: #f5f5f7; vertical-align: middle; }
+.hoja img:not([src]) { display: inline-block !important; float: right; width: auto !important; height: auto !important; margin: 0 !important; font-size: 11px; color: #777; border: 1px dashed #c4c4cf; border-radius: 4px; background: #f7f7f9; padding: 1px 6px; }
+.hoja span.forma { float: right; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.4; color: #666; border: 1px dashed #c4c4cf; border-radius: 4px; background: #f7f7f9; padding: 1px 7px; margin: 0 0 4px 8px; white-space: nowrap; user-select: none; }
 .hoja .bloque-fijo { cursor: default; border-radius: 4px; }
 .hoja .bloque-fijo:hover { outline: 1px dashed #c9c9d6; }
 .hoja p, .hoja li { margin: 0; }
