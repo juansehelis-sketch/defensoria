@@ -260,7 +260,41 @@ async def plantilla_html(plantilla_id: int, db: Session = Depends(get_db),
     datos = storage.leer(Path(pl.archivo_url).name)
     if datos is None:
         raise HTTPException(status_code=404, detail="No se encontró el archivo de la plantilla")
-    return {"html": documentos.docx_a_html(datos)}
+    return {"html": documentos.docx_a_html(datos), "membrete": documentos.membrete_html(datos)}
+
+
+def _valores_variables(exp: Expediente) -> dict:
+    """Lo que reemplaza a @numero, @caratula, @juzgado, @fecha y @mes."""
+    from app.services.plantillas import fecha_en_letras, _MESES
+    h = hoy()
+    return {
+        "numero": exp.numero or "",
+        "caratula": exp.caratula or "",
+        "juzgado": exp.juzgado or "",
+        "fecha": fecha_en_letras(h),
+        "mes": _MESES[h.month - 1],
+    }
+
+
+@router.get("/plantillas/{plantilla_id}/armar")
+async def armar_desde_plantilla(plantilla_id: int, expediente_id: int, db: Session = Depends(get_db),
+                                usuario: Usuario = Depends(obtener_usuario_actual)):
+    """Arma el proyecto desde la plantilla, con los @ ya completados con los datos
+    del expediente y la fecha de hoy. Devuelve el texto para el editor y el Word
+    base ya completado (que es el que se usa después para Word y PDF)."""
+    pl = _mi_plantilla(db, plantilla_id, usuario)
+    exp = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    datos = storage.leer(Path(pl.archivo_url).name)
+    if datos is None:
+        raise HTTPException(status_code=404, detail="No se encontró el archivo de la plantilla")
+    lleno = documentos.reemplazar_variables(datos, _valores_variables(exp))
+    base_url = pl.archivo_url if lleno is datos else _guardar_bytes(lleno, ".docx", _DOCX_MIME)
+    return {"html": documentos.docx_a_html(lleno), "membrete": documentos.membrete_html(lleno), "base_url": base_url}
+
+
+_BASE_OK = re.compile(r"^/uploads/[0-9a-f]{32}\.docx$")
 
 
 # ── Listados ───────────────────────────────────────────────────
@@ -315,6 +349,7 @@ async def enviar_proyecto(
     archivos: List[UploadFile] = File(default=[]),
     documento_html: str = Form(""),
     plantilla_id: int | None = Form(None),
+    documento_base_url: str = Form(""),
     documento_word: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
@@ -358,7 +393,10 @@ async def enviar_proyecto(
         _cargar_word_en_proyecto(proyecto, documento_word)
     elif documento_html.strip():
         proyecto.documento_html = documentos.sanitizar(documento_html)
-        if plantilla_id:
+        if documento_base_url and _BASE_OK.match(documento_base_url):
+            # Plantilla ya armada con los datos del expediente (ver /armar)
+            proyecto.documento_base_url = documento_base_url
+        elif plantilla_id:
             proyecto.documento_base_url = _mi_plantilla(db, plantilla_id, usuario).archivo_url
     if proyecto.documento_html:
         proyecto.documento_actualizado = ahora()
@@ -622,6 +660,10 @@ async def ver_proyecto(proyecto_id: int, db: Session = Depends(get_db),
     """Proyecto completo, con el documento y sus versiones."""
     p = _get_proyecto(db, proyecto_id)
     det = ProyectoDetalle.model_validate(p)
+    try:
+        det.membrete = documentos.membrete_html(_base_bytes(p)) if p.documento_html else None
+    except Exception as e:
+        print(f"[!] No se pudo leer el membrete del proyecto {p.id}: {e}")
     if p.estado == "subido":
         # Comparar lo que armó el despachante con la versión final (la anterior a "final")
         versiones = list(p.documento_versiones or [])

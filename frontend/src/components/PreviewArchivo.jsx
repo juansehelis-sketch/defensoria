@@ -6,9 +6,10 @@
  * - Otros → link para abrir.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, urlArchivo } from '../utils/api'
 import Icono from './Icono'
+import { resolverImagenes } from './EditorDocumento'
 
 export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicial = true }) {
   // El tipo se detecta desde la URL (siempre tiene la extensión real)
@@ -22,6 +23,8 @@ export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicia
   const [cargandoDoc, setCargandoDoc] = useState(false)
   const [errDoc, setErrDoc] = useState('')
   const [abierto, setAbierto] = useState(abiertoInicial)
+  const docRef = useRef(null)
+  useEffect(() => { resolverImagenes(docRef.current) }, [docHtml, abierto])
 
   useEffect(() => {
     if (!esDoc || !abierto || docHtml !== null) return
@@ -51,7 +54,7 @@ export default function PreviewArchivo({ archivo, alturaPdf = 500, abiertoInicia
             <div style={{ padding: '16px 22px' }}>
               {cargandoDoc ? <span className="spin" />
                 : errDoc ? <div className="muted">{errDoc} <a href={fileSrc} target="_blank" rel="noreferrer">Abrir archivo</a></div>
-                : <div style={{ fontSize: 13.5, lineHeight: 1.65, fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: docHtml || '' }} />}
+                : <div ref={docRef} style={{ fontSize: 13.5, lineHeight: 1.65, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: docHtml || '' }} />}
             </div>
           )}
           {!esPdf && !esImg && !esDoc && (

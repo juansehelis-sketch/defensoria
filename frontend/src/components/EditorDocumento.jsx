@@ -8,11 +8,18 @@
  * - No es "controlado": el contenido inicial entra por `inicial` y cada cambio
  *   sale por `onChange(html)`. Para cargar otro documento, cambiar la `key`.
  *
+ * - `membrete` ({encabezado, pie}) se muestra arriba y abajo de la hoja, sin
+ *   editar: es el del Word de la plantilla y se conserva siempre.
+ * - Las imágenes del Word (logos, sellos) llegan con data-src y se ven; no se
+ *   pueden mover de lugar (en el Word se copia la original). Las partes que el
+ *   editor no sabe editar (bloque-fijo) se ven pero quedan intactas.
+ *
  * También exporta <CambiosDocumento antes despues/>: muestra qué se agregó
  * (verde) y qué se sacó (rojo tachado) entre dos versiones.
  */
 
 import { useEffect, useRef } from 'react'
+import { urlArchivo } from '../utils/api'
 
 // ── Limpieza de lo pegado (mismas reglas que el servidor) ─────
 const INLINE = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', INS: 'u', S: 's', STRIKE: 's', DEL: 's', SUP: 'sup', SUB: 'sub' }
@@ -81,6 +88,15 @@ function limpiarNodo(n, colapsar) {
   return out
 }
 
+// Las imágenes guardadas en el servidor necesitan el token para verse
+export function resolverImagenes(raiz) {
+  if (!raiz) return
+  raiz.querySelectorAll('img[data-src]').forEach((img) => {
+    const u = urlArchivo(img.getAttribute('data-src'))
+    if (img.getAttribute('src') !== u) img.setAttribute('src', u)
+  })
+}
+
 export function limpiarHtml(html, colapsar = true) {
   const doc = new DOMParser().parseFromString(html || '', 'text/html')
   return limpiarNodo(doc.body, colapsar)
@@ -91,10 +107,18 @@ const CSS = `
 .hoja-fondo { background: #eceef3; border: 1px solid var(--border); border-radius: 8px; padding: 18px 12px; overflow: auto; }
 .hoja {
   background: #fff; max-width: 794px; margin: 0 auto; min-height: 420px;
-  padding: 56px 64px; box-shadow: 0 1px 4px rgba(0,0,0,.15);
-  font-family: 'Times New Roman', Times, serif; font-size: 16px; line-height: 1.5; color: #111;
-  white-space: pre-wrap; tab-size: 6; word-wrap: break-word; outline: none;
+  padding: 40px 64px 56px; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  font-family: 'Times New Roman', Times, serif; font-size: 16px; line-height: 1.15; color: #111;
+  white-space: pre-wrap; tab-size: 6; word-wrap: break-word;
 }
+.hoja-cuerpo { outline: none; min-height: 320px; }
+.hoja-membrete { color: #333; pointer-events: none; user-select: none; opacity: .9; }
+.hoja-membrete.enc { border-bottom: 1px dotted #ccc; padding-bottom: 8px; margin-bottom: 18px; }
+.hoja-membrete.pie { border-top: 1px dotted #ccc; padding-top: 8px; margin-top: 24px; font-size: .85em; }
+.hoja img { max-width: 100%; }
+.hoja img:not([src]) { display: inline-block; min-width: 60px; min-height: 24px; border: 1px dashed #bbb; background: #f5f5f7; vertical-align: middle; }
+.hoja .bloque-fijo { cursor: default; border-radius: 4px; }
+.hoja .bloque-fijo:hover { outline: 1px dashed #c9c9d6; }
 .hoja p, .hoja li { margin: 0; }
 .hoja h2 { font-size: 1.25em; margin: 0; }
 .hoja h3 { font-size: 1.1em; margin: 0; }
@@ -102,8 +126,8 @@ const CSS = `
 .hoja blockquote { margin: 0 0 0 48px; }
 .hoja table { border-collapse: collapse; margin: 4px 0; width: 100%; white-space: normal; }
 .hoja td { border: 1px solid #555; padding: 3px 6px; vertical-align: top; }
-.hoja[contenteditable="true"] { cursor: text; }
-.hoja[contenteditable="true"]:focus { box-shadow: 0 0 0 2px var(--teal), 0 1px 4px rgba(0,0,0,.15); }
+.hoja-cuerpo[contenteditable="true"] { cursor: text; }
+.hoja:focus-within { box-shadow: 0 0 0 2px var(--teal), 0 1px 4px rgba(0,0,0,.15); }
 .hoja-barra { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px; background: #fff; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; position: sticky; top: 0; z-index: 2; }
 .hoja-barra button { min-width: 34px; height: 34px; border: 1px solid transparent; background: none; border-radius: 6px; cursor: pointer; color: #333; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
 .hoja-barra button:hover { background: #f1f2f6; border-color: var(--border); }
@@ -111,7 +135,8 @@ const CSS = `
 .cambios ins { background: #d9f5e3; color: #065f46; text-decoration: underline; }
 .cambios del { background: #fde2e2; color: #9b1c1c; text-decoration: line-through; }
 @media (max-width: 760px) {
-  .hoja { padding: 22px 16px; font-size: 15px; min-height: 300px; }
+  .hoja { padding: 18px 14px 22px; font-size: 15px; min-height: 300px; }
+  .hoja-cuerpo { min-height: 240px; }
   .hoja-fondo { padding: 8px 4px; }
 }
 `
@@ -141,14 +166,22 @@ const BOTONES = [
   { cmd: 'redo', titulo: 'Rehacer (Ctrl+Y)', cont: <Linea d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" /> },
 ]
 
-export default function EditorDocumento({ inicial, editable = true, onChange }) {
+export default function EditorDocumento({ inicial, editable = true, onChange, membrete }) {
   const ref = useRef(null)
+  const encRef = useRef(null)
+  const pieRef = useRef(null)
 
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== (inicial || '')) {
       ref.current.innerHTML = inicial || '<p><br></p>'
+      resolverImagenes(ref.current)
     }
   }, [inicial])
+
+  useEffect(() => {
+    resolverImagenes(encRef.current)
+    resolverImagenes(pieRef.current)
+  }, [membrete])
 
   function avisar() {
     if (onChange && ref.current) onChange(ref.current.innerHTML)
@@ -213,18 +246,26 @@ export default function EditorDocumento({ inicial, editable = true, onChange }) 
         </div>
       )}
       <div className="hoja-fondo">
-        <div
-          ref={ref}
-          className="hoja"
-          contentEditable={editable}
-          suppressContentEditableWarning
-          spellCheck={editable}
-          lang="es"
-          onInput={avisar}
-          onFocus={alEnfocar}
-          onKeyDown={editable ? alTeclear : undefined}
-          onPaste={editable ? alPegar : undefined}
-        />
+        <div className="hoja">
+          {membrete?.encabezado && (
+            <div ref={encRef} className="hoja-membrete enc" dangerouslySetInnerHTML={{ __html: membrete.encabezado }} />
+          )}
+          <div
+            ref={ref}
+            className="hoja-cuerpo"
+            contentEditable={editable}
+            suppressContentEditableWarning
+            spellCheck={editable}
+            lang="es"
+            onInput={avisar}
+            onFocus={alEnfocar}
+            onKeyDown={editable ? alTeclear : undefined}
+            onPaste={editable ? alPegar : undefined}
+          />
+          {membrete?.pie && (
+            <div ref={pieRef} className="hoja-membrete pie" dangerouslySetInnerHTML={{ __html: membrete.pie }} />
+          )}
+        </div>
       </div>
     </div>
   )

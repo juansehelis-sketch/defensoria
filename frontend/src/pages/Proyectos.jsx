@@ -403,7 +403,7 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
               <CambiosDocumento antes={verCambios.antes} despues={verCambios.despues} />
             </>
           ) : (
-            <EditorDocumento key={det.id + '-' + p.estado} inicial={det.documento_html} editable={editable} onChange={alCambiar} />
+            <EditorDocumento key={det.id + '-' + p.estado} inicial={det.documento_html} membrete={det.membrete} editable={editable} onChange={alCambiar} />
           )}
 
           {versiones.length > 1 && (
@@ -593,7 +593,7 @@ function MisPlantillas({ onClose, onCambio }) {
   async function ver(pl) {
     try {
       const d = await api(`/api/proyectos/plantillas/${pl.id}/html`)
-      setViendo({ id: pl.id, nombre: pl.nombre, html: d.html })
+      setViendo({ id: pl.id, nombre: pl.nombre, html: d.html, membrete: d.membrete })
     } catch (e) { avisar(e.message, 'error') }
   }
 
@@ -607,12 +607,15 @@ function MisPlantillas({ onClose, onCambio }) {
             <strong>{viendo.nombre}</strong>
             <button className="btn btn-ghost btn-sm" onClick={() => setViendo(null)}>← Volver a la lista</button>
           </div>
-          <EditorDocumento key={viendo.id} inicial={viendo.html} editable={false} />
+          <EditorDocumento key={viendo.id} inicial={viendo.html} membrete={viendo.membrete} editable={false} />
         </>
       ) : (
         <>
           <div className="card" style={{ padding: 14, marginBottom: 16, background: '#f7f8fc' }}>
-            <div className="card-title" style={{ marginBottom: 8 }}>Agregar una plantilla (Word .docx)</div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Agregar una plantilla (Word .docx)</div>
+            <div className="tl-meta" style={{ marginBottom: 10 }}>
+              En el Word podés escribir <strong>@numero</strong>, <strong>@caratula</strong>, <strong>@juzgado</strong>, <strong>@fecha</strong> y <strong>@mes</strong>: al armar el proyecto se completan solos con los datos del expediente y la fecha del día.
+            </div>
             <div className="field">
               <input ref={inputRef} type="file" accept=".docx"
                 onChange={(e) => { const f = e.target.files[0] || null; setArchivo(f); if (f && !nombre) setNombre(f.name.replace(/\.docx$/i, '')) }} />
@@ -689,11 +692,13 @@ function EnviarProyecto({ onClose, onEnviado }) {
   const [plantillas, setPlantillas] = useState(null)
   const [plantillaId, setPlantillaId] = useState('')  // '' = sin elegir, 'blanco' = hoja en blanco
   const [docInicial, setDocInicial] = useState(null)
+  const [membrete, setMembrete] = useState(null)
   const [cargaDoc, setCargaDoc] = useState(0)
   const [cargandoPlantilla, setCargandoPlantilla] = useState(false)
   const [word, setWord] = useState(null)
   const [mostrarPlantillas, setMostrarPlantillas] = useState(false)
   const docHtml = useRef('')
+  const baseUrl = useRef('')  // Word de la plantilla ya completado con los datos del expediente
   const tocado = useRef(false)
 
   // Cargar posibles destinatarios (secretarias + defensora) y mis plantillas
@@ -717,25 +722,48 @@ function EnviarProyecto({ onClose, onEnviado }) {
     return () => clearTimeout(t)
   }, [busqueda])
 
-  async function elegirPlantilla(valor) {
-    if (valor === plantillaId) return
-    if (tocado.current && !(await confirmar({ titulo: 'Cambiar de plantilla', mensaje: 'Se pierde lo que ya escribiste en el proyecto. ¿Cambiar igual?', ok: 'Cambiar' }))) return
-    setPlantillaId(valor)
+  // Arma el proyecto desde la plantilla: los @numero, @caratula, @juzgado,
+  // @fecha y @mes vienen ya completados con los datos del expediente.
+  async function armar(valor, exp) {
     tocado.current = false
-    if (!valor) { setDocInicial(null); docHtml.current = ''; return }
+    baseUrl.current = ''
+    if (!valor) { setDocInicial(null); setMembrete(null); docHtml.current = ''; return }
     if (valor === 'blanco') {
+      setMembrete(null)
       setDocInicial('<p><br></p>'); docHtml.current = '<p><br></p>'; setCargaDoc((n) => n + 1)
       return
     }
+    if (!exp) { setError('Primero elegí el expediente.'); return }
     setCargandoPlantilla(true)
     try {
-      const d = await api(`/api/proyectos/plantillas/${valor}/html`)
+      const d = await api(`/api/proyectos/plantillas/${valor}/armar`, { params: { expediente_id: exp.id } })
+      baseUrl.current = d.base_url
+      setMembrete(d.membrete)
       setDocInicial(d.html); docHtml.current = d.html; setCargaDoc((n) => n + 1)
     } catch (e) {
       setError(e.message)
     } finally {
       setCargandoPlantilla(false)
     }
+  }
+
+  async function elegirPlantilla(valor) {
+    if (valor === plantillaId) return
+    if (tocado.current && !(await confirmar({ titulo: 'Cambiar de plantilla', mensaje: 'Se pierde lo que ya escribiste en el proyecto. ¿Cambiar igual?', ok: 'Cambiar' }))) return
+    setPlantillaId(valor)
+    await armar(valor, expediente)
+  }
+
+  async function elegirExpediente(x) {
+    if (!titulo || (expediente && titulo === `Proyecto ${expediente.numero}`)) setTitulo(`Proyecto ${x.numero}`)
+    // Si ya había una plantilla armada con otro expediente, se vuelve a armar con este
+    if (plantillaId && plantillaId !== 'blanco' && expediente?.id !== x.id) {
+      if (tocado.current && !(await confirmar({ titulo: 'Cambiar de expediente', mensaje: 'El proyecto se vuelve a armar con los datos del nuevo expediente y se pierde lo que ya escribiste. ¿Seguir?', ok: 'Seguir' }))) return
+      setExpediente(x)
+      await armar(plantillaId, x)
+      return
+    }
+    setExpediente(x)
   }
 
   async function cerrar() {
@@ -765,6 +793,7 @@ function EnviarProyecto({ onClose, onEnviado }) {
       } else {
         fd.append('documento_html', docHtml.current)
         if (plantillaId && plantillaId !== 'blanco') fd.append('plantilla_id', plantillaId)
+        if (baseUrl.current) fd.append('documento_base_url', baseUrl.current)
       }
       const resp = await fetch(API_BASE + '/api/proyectos/', {
         method: 'POST',
@@ -813,7 +842,7 @@ function EnviarProyecto({ onClose, onEnviado }) {
             {expedientes.length > 0 && (
               <div style={{ border: '1px solid var(--border)', borderRadius: 6, marginTop: 4, maxHeight: 180, overflowY: 'auto' }}>
                 {expedientes.map((x) => (
-                  <div key={x.id} onClick={() => { setExpediente(x); if (!titulo) setTitulo(`Proyecto ${x.numero}`) }}
+                  <div key={x.id} onClick={() => elegirExpediente(x)}
                     style={{ padding: '8px 11px', borderBottom: '1px solid #edf0f5', cursor: 'pointer', fontSize: 13 }}>
                     <span className="mono">{x.numero}</span> · {x.caratula?.slice(0, 55)}
                   </div>
@@ -860,7 +889,7 @@ function EnviarProyecto({ onClose, onEnviado }) {
           <div className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }}>
             <div className="field" style={{ flex: '1 1 260px', marginBottom: 0 }}>
               <label>Plantilla</label>
-              <select value={plantillaId} onChange={(e) => elegirPlantilla(e.target.value)} disabled={plantillas === null}>
+              <select value={plantillaId} onChange={(e) => elegirPlantilla(e.target.value)} disabled={plantillas === null || !expediente}>
                 <option value="">— Elegir plantilla —</option>
                 {grupos.map(([g, items]) => (
                   <optgroup key={g} label={g}>
@@ -872,6 +901,9 @@ function EnviarProyecto({ onClose, onEnviado }) {
             </div>
             <button type="button" className="btn btn-ghost" onClick={() => setMostrarPlantillas(true)}>Mis plantillas</button>
           </div>
+          {!expediente && (
+            <div className="tl-meta" style={{ marginTop: -6, marginBottom: 10 }}>Primero elegí el expediente: la plantilla se completa sola con sus datos.</div>
+          )}
           {plantillas && plantillas.length === 0 && !docInicial && (
             <div className="alert alert-warn">
               Todavía no cargaste plantillas. Podés subir tus modelos en Word con "Mis plantillas", o empezar con una hoja en blanco.
@@ -882,6 +914,7 @@ function EnviarProyecto({ onClose, onEnviado }) {
             <EditorDocumento
               key={cargaDoc}
               inicial={docInicial}
+              membrete={membrete}
               onChange={(h) => { docHtml.current = h; tocado.current = true }}
             />
           )}

@@ -283,6 +283,7 @@ class ProyectoDetalle(Proyecto):
     documento_editor: Optional[str] = None
     documento_versiones: List[VersionDocumento] = []
     corregido_por_firmante: Optional[bool] = None  # al subirse: ¿cambió lo que armó el despachante?
+    membrete: Optional[dict] = None  # {"encabezado", "pie"} del Word base, para mostrar
 
 
 class PlantillaFirma(BaseModel):
