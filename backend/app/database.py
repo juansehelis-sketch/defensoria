@@ -12,6 +12,11 @@ SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 # SQLAlchemy 2.0 requiere "postgresql://". La normalizamos.
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# El driver instalado es psycopg2 (psycopg2-binary). Las versiones nuevas de
+# SQLAlchemy usan por defecto "psycopg" (v3) para "postgresql://", así que se
+# lo pedimos explícito para que un reinstalado de dependencias no lo rompa.
+if SQLALCHEMY_DATABASE_URL.startswith("postgresql://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 # IMPORTANTE (multiusuario): los endpoints síncronos de FastAPI corren en un pool
 # de hilos, así que necesitamos un pool de conexiones real (NO una sola conexión
