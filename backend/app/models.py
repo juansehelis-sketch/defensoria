@@ -179,6 +179,16 @@ class Proyecto(Base):
     fecha_envio = Column(DateTime, default=ahora)
     fecha_subido = Column(DateTime, nullable=True)
 
+    # Proyecto de dictamen editable dentro del sistema (ver services/documentos.py).
+    # El cuerpo se guarda como HTML; el Word base aporta membrete, márgenes y estilos.
+    documento_html = Column(Text, nullable=True)
+    documento_base_url = Column(String, nullable=True)      # plantilla o Word adjuntado
+    documento_original_url = Column(String, nullable=True)  # Word adjuntado tal cual
+    documento_editado = Column(Boolean, default=False)      # ¿se tocó el Word adjuntado?
+    documento_versiones = Column(JSON, default=list)        # [{n, autor, autor_id, rol, fecha, motivo, html}]
+    documento_actualizado = Column(DateTime, nullable=True)
+    documento_editor = Column(String, nullable=True)
+
     # Relaciones
     expediente = relationship("Expediente", back_populates="proyectos")
     remitente = relationship("Usuario", foreign_keys=[remitente_id])
@@ -199,6 +209,26 @@ class Proyecto(Base):
     @property
     def destinatario_nombre(self):
         return self.destinatario.nombre if self.destinatario else None
+
+    @property
+    def tiene_documento(self):
+        return bool(self.documento_html)
+
+
+class PlantillaFirma(Base):
+    """
+    Plantilla en Word de cada usuario para sus proyectos "a la firma".
+    Cada uno sube las suyas y las ordena por categoría (ej. tipo de proceso).
+    """
+    __tablename__ = "plantillas_firma"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), index=True)
+    nombre = Column(String)
+    categoria = Column(String, nullable=True)
+    archivo_url = Column(String)
+    archivo_nombre = Column(String, nullable=True)
+    fecha_creacion = Column(DateTime, default=ahora)
 
 
 class Defendido(Base):

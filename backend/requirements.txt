@@ -23,6 +23,9 @@ pdfplumber>=0.11.4
 openpyxl>=3.1.5
 python-docx>=1.1.2
 
+# PDF de los proyectos de dictamen (sin depender de Word ni LibreOffice)
+reportlab>=4.0
+
 # Base de datos en la nube (solo se usa en producción con Postgres;
 # en local seguís usando SQLite y este paquete no hace falta instalarlo)
 psycopg2-binary>=2.9.9

@@ -85,6 +85,13 @@ _COLUMNAS_EXTRA = [
     ("usuarios", "ultimo_ingreso_ip", "VARCHAR"),
     ("usuarios", "ultimo_ingreso_lugar", "VARCHAR"),
     ("audiencias", "despachante", "VARCHAR"),
+    ("proyectos", "documento_html", "TEXT"),
+    ("proyectos", "documento_base_url", "VARCHAR"),
+    ("proyectos", "documento_original_url", "VARCHAR"),
+    ("proyectos", "documento_editado", "BOOLEAN DEFAULT FALSE"),
+    ("proyectos", "documento_versiones", "JSON"),
+    ("proyectos", "documento_actualizado", "TIMESTAMP"),
+    ("proyectos", "documento_editor", "VARCHAR"),
 ]
 
 

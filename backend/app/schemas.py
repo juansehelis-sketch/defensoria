@@ -258,6 +258,40 @@ class Proyecto(BaseModel):
     expediente_caratula: Optional[str] = None
     remitente_nombre: Optional[str] = None
     destinatario_nombre: Optional[str] = None
+    tiene_documento: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class VersionDocumento(BaseModel):
+    n: int
+    autor: Optional[str] = None
+    autor_id: Optional[int] = None
+    rol: Optional[str] = None
+    fecha: Optional[datetime] = None
+    motivo: Optional[str] = None  # envio, correccion, devolucion, final
+    html: Optional[str] = None
+
+
+class ProyectoDetalle(Proyecto):
+    """Proyecto con el documento (solo al abrirlo: el HTML puede ser largo)."""
+    documento_html: Optional[str] = None
+    documento_editado: Optional[bool] = None
+    documento_original_url: Optional[str] = None
+    documento_actualizado: Optional[datetime] = None
+    documento_editor: Optional[str] = None
+    documento_versiones: List[VersionDocumento] = []
+    corregido_por_firmante: Optional[bool] = None  # al subirse: ¿cambió lo que armó el despachante?
+
+
+class PlantillaFirma(BaseModel):
+    id: int
+    nombre: str
+    categoria: Optional[str] = None
+    archivo_url: str
+    archivo_nombre: Optional[str] = None
+    fecha_creacion: datetime
 
     class Config:
         from_attributes = True
