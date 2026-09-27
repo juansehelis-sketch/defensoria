@@ -72,6 +72,7 @@ class Expediente(Base):
     observaciones = Column(Text)
     resumen = Column(Text)  # Resumen libre del caso (lo mantienen los despachantes)
     ficha = Column(Text, nullable=True)  # Ficha "Historia Social" (JSON editable en pantalla)
+    etiquetas = Column(JSON, default=list)  # marcas libres del equipo ("esperando informe", "internación"...)
     fecha_creacion = Column(DateTime, default=ahora)
     fecha_actualizacion = Column(DateTime, default=ahora, onupdate=ahora)
 
@@ -114,6 +115,11 @@ class EntradaSalida(Base):
     def numero_expediente(self) -> str | None:
         """Número del expediente vinculado (para serializar al frontend)."""
         return self.expediente.numero if self.expediente else None
+
+    @property
+    def etiquetas(self):
+        """Etiquetas del expediente vinculado (se muestran en el listado)."""
+        return (self.expediente.etiquetas or []) if self.expediente else []
 
 
 class GrillaAsignacion(Base):

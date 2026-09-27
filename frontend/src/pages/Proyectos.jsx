@@ -41,6 +41,21 @@ export default function Proyectos() {
   const [seleccionado, setSeleccionado] = useState(null)
   const [mostrarEnviar, setMostrarEnviar] = useState(false)
   const [mostrarPlantillas, setMostrarPlantillas] = useState(false)
+  const [buscar, setBuscar] = useState('')
+  const [resultados, setResultados] = useState(null)
+  const [buscando, setBuscando] = useState(false)
+
+  // Buscador dentro del texto de todos los proyectos y dictámenes
+  useEffect(() => {
+    const q = buscar.trim()
+    if (q.length < 3) { setResultados(null); return }
+    const t = setTimeout(async () => {
+      setBuscando(true)
+      try { setResultados(await api('/api/proyectos/buscar', { params: { q } })) }
+      catch (e) { console.error(e) } finally { setBuscando(false) }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [buscar])
 
   async function cargar() {
     setCargando(true)
@@ -96,6 +111,37 @@ export default function Proyectos() {
         </div>
       </div>
 
+      {/* Buscador en el texto de los dictámenes */}
+      <div className="field" style={{ marginBottom: 14 }}>
+        <input value={buscar} onChange={(e) => setBuscar(e.target.value)}
+          placeholder='Buscar en el texto de los dictámenes (ej: cuidado personal, "art. 103")...' />
+      </div>
+      {buscar.trim().length >= 3 && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="card-header">
+            <span className="card-title">Resultados en los dictámenes</span>
+            {buscando ? <span className="spin" /> : <span className="tl-meta">{resultados ? `${resultados.length} proyecto(s)` : ''}</span>}
+          </div>
+          <div className="card-body" style={{ paddingTop: 4 }}>
+            {resultados && resultados.length === 0 && <div className="empty" style={{ padding: 12 }}>No aparece en ningún dictamen armado en el sistema.</div>}
+            {(resultados || []).map((r) => (
+              <div key={r.id} onClick={() => setSeleccionado(r)}
+                style={{ padding: '10px 0', borderBottom: '1px solid #edf0f5', cursor: 'pointer' }}>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <span className="mono" style={{ fontWeight: 600, color: 'var(--navy)' }}>{r.expediente_numero}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13.5 }}>{r.titulo}</span>
+                  <span className={'badge ' + (ESTADO_LABEL[r.estado]?.cls || 'badge-archivo')}>{ESTADO_LABEL[r.estado]?.txt || r.estado}</span>
+                  <span className="tl-meta">{r.remitente_nombre} → {r.destinatario_nombre} · {fechaHora(r.fecha)}</span>
+                </div>
+                <div style={{ fontSize: 13, color: '#444', marginTop: 4, lineHeight: 1.5 }}>
+                  <Resaltado texto={r.fragmento} terminos={r.terminos} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {cargando ? (
         <div className="card"><div className="loading-center"><span className="spin" /></div></div>
       ) : vista === 'tablero' ? (
@@ -145,6 +191,33 @@ export default function Proyectos() {
       {mostrarPlantillas && <MisPlantillas onClose={() => setMostrarPlantillas(false)} />}
     </div>
   )
+}
+
+// Marca en amarillo las palabras buscadas (sin distinguir tildes ni mayúsculas)
+function sinTildes(t) {
+  return (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function Resaltado({ texto, terminos }) {
+  const plano = sinTildes(texto)
+  const marcas = []
+  ;(terminos || []).forEach((t) => {
+    const q = sinTildes(t.trim())
+    if (!q) return
+    let i = plano.indexOf(q)
+    while (i >= 0) { marcas.push([i, i + q.length]); i = plano.indexOf(q, i + q.length) }
+  })
+  marcas.sort((a, b) => a[0] - b[0])
+  const partes = []
+  let pos = 0
+  marcas.forEach(([a, b], k) => {
+    if (a < pos) return
+    partes.push(texto.slice(pos, a))
+    partes.push(<mark key={k} style={{ background: '#fdeaa7', padding: 0 }}>{texto.slice(a, b)}</mark>)
+    pos = b
+  })
+  partes.push(texto.slice(pos))
+  return <>{partes}</>
 }
 
 // ── Tablero (kanban) por estado ────────────────────────────────

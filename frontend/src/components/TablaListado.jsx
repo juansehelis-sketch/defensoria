@@ -15,6 +15,7 @@ import { api } from '../utils/api'
 import { avisar } from '../ui'
 import { fechaCorta, colorFila } from '../utils/format'
 import Icono from './Icono'
+import { ChipEtiqueta } from './Etiquetas'
 
 const inputStyle = {
   width: '100%', padding: '4px 6px', border: '1.5px solid var(--teal)',
@@ -215,7 +216,14 @@ export default function TablaListado({ registros, despachantes = [], mostrarFech
               <td className="mono">{r.numero_expediente || '—'}</td>
               <td style={{ minWidth: 260 }}>
                 <div className="row" style={{ gap: 6, alignItems: 'baseline' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}><Celda valor={r.autos} {...cp(r, 'autos')} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Celda valor={r.autos} {...cp(r, 'autos')} />
+                    {r.etiquetas?.length > 0 && (
+                      <div className="row" style={{ gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                        {r.etiquetas.map((t) => <ChipEtiqueta key={t} texto={t} />)}
+                      </div>
+                    )}
+                  </div>
                   {r.urgente && <span style={{ color: 'var(--red)', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>— URGENTE</span>}
                 </div>
               </td>

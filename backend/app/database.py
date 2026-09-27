@@ -97,6 +97,7 @@ _COLUMNAS_EXTRA = [
     ("proyectos", "documento_versiones", "JSON"),
     ("proyectos", "documento_actualizado", "TIMESTAMP"),
     ("proyectos", "documento_editor", "VARCHAR"),
+    ("expedientes", "etiquetas", "JSON"),
 ]
 
 

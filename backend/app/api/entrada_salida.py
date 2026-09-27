@@ -376,17 +376,23 @@ async def listar_entrada_salida(
     juzgado: str = Query(None),
     asignacion: str = Query(None),
     busqueda: str = Query(None),
+    etiqueta: str = Query(None),
     skip: int = 0,
     limit: int = 200,
     db: Session = Depends(get_db)
 ):
     """
     Lista el listado diario (Entrada/Salida) con filtros opcionales.
-    Es la pantalla principal compartida.
+    Es la pantalla principal compartida. `etiqueta` filtra por las etiquetas
+    del expediente vinculado.
     """
     query = _aplicar_filtros(
         db.query(EntradaSalida), fecha_inicio, fecha_fin, juzgado, asignacion, busqueda
     )
+    if etiqueta:
+        ids = [i for i, et in db.query(Expediente.id, Expediente.etiquetas).filter(Expediente.etiquetas.isnot(None))
+               if etiqueta in (et or [])]
+        query = query.filter(EntradaSalida.expediente_id.in_(ids or [-1]))
     registros = (
         query.order_by(EntradaSalida.fecha.desc(), EntradaSalida.id.desc())
         .offset(skip)

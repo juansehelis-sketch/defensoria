@@ -39,6 +39,8 @@ export default function Listado() {
 
   const [busqueda, setBusqueda] = useState('')
   const [fAsignacion, setFAsignacion] = useState('')
+  const [fEtiqueta, setFEtiqueta] = useState('')
+  const [etiquetas, setEtiquetas] = useState([])
 
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarPDF, setMostrarPDF] = useState(false)
@@ -48,7 +50,7 @@ export default function Listado() {
 
   // La vista "general", una búsqueda o un filtro de asignación muestran TODAS
   // las fechas; si no, se ve día por día.
-  const verTodas = vista === 'general' || busqueda.trim().length > 0 || !!fAsignacion
+  const verTodas = vista === 'general' || busqueda.trim().length > 0 || !!fAsignacion || !!fEtiqueta
   const diaISO = isoLocal(dia)
 
   // Un día es hábil si no es sábado/domingo ni está oculto a mano.
@@ -70,6 +72,7 @@ export default function Listado() {
     try {
       const params = {}
       if (fAsignacion) params.asignacion = fAsignacion
+      if (fEtiqueta) params.etiqueta = fEtiqueta
       if (busqueda.trim()) params.busqueda = busqueda
       if (verTodas) {
         // En la vista general, si se eligió un mes se trae ese mes completo;
@@ -106,11 +109,12 @@ export default function Listado() {
   }
 
   useEffect(() => { api('/api/usuarios/').then(setDespachantes).catch(() => {}) }, [])
+  useEffect(() => { api('/api/expedientes/etiquetas').then(setEtiquetas).catch(() => {}) }, [])
   useEffect(() => { cargarOcultos() }, [])
   useEffect(() => {
     const t = setTimeout(cargar, verTodas ? 250 : 0)
     return () => clearTimeout(t)
-  }, [diaISO, busqueda, fAsignacion, vista, mes])
+  }, [diaISO, busqueda, fAsignacion, fEtiqueta, vista, mes])
 
   function cambiarMes(delta) {
     const base = mes ? new Date(mes + '-01T00:00:00') : new Date()
@@ -246,6 +250,15 @@ export default function Listado() {
             {despachantes.map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
           </select>
         </div>
+        {etiquetas.length > 0 && (
+          <div className="field">
+            <label>Etiqueta</label>
+            <select value={fEtiqueta} onChange={(e) => setFEtiqueta(e.target.value)}>
+              <option value="">Todas</option>
+              {etiquetas.map((t) => <option key={t.etiqueta} value={t.etiqueta}>{t.etiqueta} ({t.cantidad})</option>)}
+            </select>
+          </div>
+        )}
         {usuario?.rol !== 'defensora' && (
           <button className={'btn btn-sm ' + (fAsignacion === usuario?.nombre ? 'btn-navy' : 'btn-ghost')} onClick={filtrarMios}>
             {fAsignacion === usuario?.nombre ? '✓ ' : ''}Mis expedientes

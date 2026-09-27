@@ -4,7 +4,7 @@ Endpoints de expedientes: ABM, búsqueda, upload PDF.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from datetime import date
 from pathlib import Path
 import json
@@ -73,6 +73,7 @@ async def listar_expedientes(
     juzgado: str = None,
     despachante: str = None,
     busqueda: str = None,
+    etiqueta: str = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
@@ -102,8 +103,24 @@ async def listar_expedientes(
             )
         )
 
+    if etiqueta:
+        # Las etiquetas viven en una lista JSON: se filtra en Python
+        todos = query.order_by(Expediente.fecha_entrada.desc()).all()
+        return [e for e in todos if etiqueta in (e.etiquetas or [])][skip:skip + limit]
+
     expedientes = query.order_by(Expediente.fecha_entrada.desc()).offset(skip).limit(limit).all()
     return expedientes
+
+
+@router.get("/etiquetas")
+async def etiquetas_en_uso(db: Session = Depends(get_db)):
+    """Todas las etiquetas que se usan, con cuántos expedientes tiene cada una."""
+    from collections import Counter
+    cuenta = Counter()
+    for (lista,) in db.query(Expediente.etiquetas).filter(Expediente.etiquetas.isnot(None)).all():
+        for t in lista or []:
+            cuenta[t] += 1
+    return [{"etiqueta": t, "cantidad": n} for t, n in sorted(cuenta.items(), key=lambda x: (-x[1], x[0].lower()))]
 
 
 @router.get("/por-numero")
@@ -304,6 +321,87 @@ async def cancelar_vista(
 
     db.commit()
     return {"message": "Vista cancelada", "fila_id": fila.id, "observaciones": fila.observaciones}
+
+
+@router.put("/{expediente_id}/etiquetas", response_model=ExpedienteSchema)
+async def guardar_etiquetas(expediente_id: int, datos: dict = Body(...), db: Session = Depends(get_db)):
+    """Reemplaza las etiquetas del expediente (texto libre, sin repetir, hasta 12)."""
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not expediente:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    limpias = []
+    for t in datos.get("etiquetas") or []:
+        t = re.sub(r"\s+", " ", str(t)).strip()[:30]
+        if t and t.lower() not in [x.lower() for x in limpias]:
+            limpias.append(t)
+    expediente.etiquetas = limpias[:12]
+    db.commit()
+    db.refresh(expediente)
+    return expediente
+
+
+def _dni_normalizado(columna):
+    """DNI sin puntos ni espacios, en SQL (funciona en SQLite y Postgres)."""
+    return func.replace(func.replace(func.replace(columna, ".", ""), " ", ""), "-", "")
+
+
+@router.get("/{expediente_id}/coincidencias")
+async def coincidencias_por_dni(expediente_id: int, db: Session = Depends(get_db)):
+    """Otros expedientes donde aparece alguno de los defendidos de este (mismo DNI).
+    Sirve para detectar causas relacionadas de la misma persona."""
+    from app.services.personas import normalizar_dni
+    propios = db.query(Defendido).filter(Defendido.expediente_id == expediente_id).all()
+    out = []
+    for d in propios:
+        dni = normalizar_dni(d.dni)
+        if len(dni) < 7:
+            continue
+        otros = (
+            db.query(Defendido)
+            .filter(Defendido.expediente_id != expediente_id)
+            .filter(_dni_normalizado(Defendido.dni) == dni)
+            .all()
+        )
+        vistos = set()
+        for o in otros:
+            if o.expediente_id in vistos or not o.expediente:
+                continue
+            vistos.add(o.expediente_id)
+            out.append({
+                "defendido": d.nombre, "dni": d.dni,
+                "expediente_id": o.expediente_id, "numero": o.expediente.numero,
+                "caratula": o.expediente.caratula, "nombre_alli": o.nombre,
+            })
+    return out
+
+
+@router.post("/{expediente_id}/leer-personas")
+async def leer_personas(expediente_id: int, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Lee un PDF o Word (vista, demanda, escrito) y propone las personas que
+    aparecen con DNI o fecha de nacimiento. No guarda nada: se elige después."""
+    from app.services import personas
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not expediente:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    datos = archivo.file.read()
+    if len(datos) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo es demasiado grande (máximo 25 MB)")
+    try:
+        texto = personas.extraer_texto(datos, archivo.filename or "")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo")
+    if not texto.strip():
+        raise HTTPException(status_code=400, detail="El archivo no tiene texto para leer (¿es una imagen escaneada?)")
+    encontrados = personas.personas_en_texto(texto)
+    ya = expediente.defendidos or []
+    dnis = {personas.normalizar_dni(d.dni) for d in ya if d.dni}
+    nombres = {re.sub(r"[^a-z]", "", personas._sin_tildes(d.nombre or "").lower()) for d in ya}
+    for p in encontrados:
+        p["ya_cargado"] = bool((p["dni"] and personas.normalizar_dni(p["dni"]) in dnis) or
+                               (p["nombre"] and re.sub(r"[^a-z]", "", personas._sin_tildes(p["nombre"]).lower()) in nombres))
+    return {"personas": encontrados}
 
 
 @router.get("/{expediente_id}/defendidos", response_model=list[DefendidoSchema])

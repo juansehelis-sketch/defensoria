@@ -300,6 +300,58 @@ async def armar_desde_plantilla(plantilla_id: int, expediente_id: int, db: Sessi
 _BASE_OK = re.compile(r"^/uploads/[0-9a-f]{32}\.docx$")
 
 
+# ── Buscador dentro de los proyectos y dictámenes ─────────────
+
+def _plano_busqueda(t: str) -> str:
+    import unicodedata
+    t = "".join(c for c in unicodedata.normalize("NFD", t or "") if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", t.lower())
+
+
+@router.get("/buscar")
+async def buscar_en_dictamenes(q: str, db: Session = Depends(get_db),
+                               usuario: Usuario = Depends(obtener_usuario_actual)):
+    """Busca palabras o una frase ("entre comillas") en el texto de todos los
+    proyectos de dictamen armados en el sistema. Sin distinguir tildes ni mayúsculas."""
+    q = (q or "").strip()
+    if len(q) < 3:
+        return []
+    frases = re.findall(r'"([^"]+)"', q)
+    sueltas = re.sub(r'"[^"]*"', " ", q).split()
+    terminos = [_plano_busqueda(x) for x in frases + sueltas if len(x.strip()) >= 2]
+    if not terminos:
+        return []
+    resultados = []
+    proyectos = (
+        db.query(Proyecto)
+        .filter(Proyecto.documento_html.isnot(None))
+        .order_by(Proyecto.fecha_envio.desc())
+        .limit(2000)
+        .all()
+    )
+    for p in proyectos:
+        texto = documentos.texto_plano(p.documento_html)
+        plano = _plano_busqueda(texto)
+        if not all(t in plano for t in terminos):
+            continue
+        # Fragmento alrededor de la primera coincidencia (el texto "plano" y el
+        # original tienen el mismo largo salvo espacios: se busca en el original compactado)
+        compacto = re.sub(r"\s+", " ", texto)
+        i = _plano_busqueda(compacto).find(terminos[0])
+        ini, fin = max(0, i - 120), min(len(compacto), i + len(terminos[0]) + 180)
+        resultados.append({
+            "id": p.id, "titulo": p.titulo, "estado": p.estado,
+            "expediente_numero": p.expediente_numero, "expediente_caratula": p.expediente_caratula,
+            "remitente_nombre": p.remitente_nombre, "destinatario_nombre": p.destinatario_nombre,
+            "fecha": p.fecha_subido or p.fecha_envio,
+            "fragmento": ("…" if ini > 0 else "") + compacto[ini:fin] + ("…" if fin < len(compacto) else ""),
+            "terminos": frases + sueltas,
+        })
+        if len(resultados) >= 60:
+            break
+    return resultados
+
+
 # ── Listados ───────────────────────────────────────────────────
 
 @router.get("/recibidos", response_model=list[ProyectoSchema])

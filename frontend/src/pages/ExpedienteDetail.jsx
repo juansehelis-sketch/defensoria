@@ -5,6 +5,8 @@
  * - Defendidos (nuestros representados) con edades y datos.
  * - Dictámenes subidos (PDFs) con vista previa.
  * - Línea de tiempo (historial) de todo lo que pasó, con carga de intervenciones.
+ * - Etiquetas del equipo, botón para consultar la causa en el PJN, lectura de
+ *   defendidos desde un PDF/Word y aviso de otras causas con el mismo DNI.
  */
 
 import { useEffect, useState } from 'react'
@@ -18,6 +20,20 @@ import PreviewArchivo from '../components/PreviewArchivo'
 import ArmarDesdeExpediente from '../components/ArmarDesdeExpediente'
 import FichaExpediente from '../components/FichaExpediente'
 import Icono from '../components/Icono'
+import { EditorEtiquetas } from '../components/Etiquetas'
+
+const URL_CONSULTA_PJN = 'https://scw.pjn.gov.ar/scw/home.seam'
+
+// La consulta del PJN no admite abrir una causa por link: se abre la consulta
+// y se deja el número copiado para pegar.
+async function consultarEnPJN(numero) {
+  const [num, anio] = (numero || '').split('/')
+  const ventana = window.open(URL_CONSULTA_PJN, '_blank', 'noopener')
+  try { await navigator.clipboard.writeText((num || '').trim()) } catch { /* sin permiso para copiar */ }
+  avisar(`Se abrió la consulta del PJN y quedó copiado el número ${num}${anio ? ` (año ${anio})` : ''}. `
+    + 'Elegí la jurisdicción "CIV - Cámara Nacional de Apelaciones en lo Civil", pegá el número y escribí el año.', 'info')
+  if (!ventana) avisar('El navegador bloqueó la ventana nueva: permití las ventanas emergentes para este sitio.', 'error')
+}
 
 export default function ExpedienteDetail() {
   const { id } = useParams()
@@ -115,8 +131,14 @@ export default function ExpedienteDetail() {
               <span className="row" style={{ gap: 6 }}><Icono nombre="audiencias" size={14} color="var(--celeste)" /> Entrada {fechaCorta(expediente.fecha_entrada)}</span>
               <span className={claseEstado(expediente.estado)}>{expediente.estado}</span>
             </div>
+            <div style={{ marginTop: 12 }}>
+              <EditorEtiquetas expediente={expediente} claro onCambio={(et) => setExpediente((e) => ({ ...e, etiquetas: et }))} />
+            </div>
           </div>
-          <div className="row" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }} onClick={() => consultarEnPJN(expediente.numero)} title="Abrir la consulta de causas del Poder Judicial de la Nación">
+              <Icono nombre="abrir" size={13} color="#fff" /> Consultar en PJN
+            </button>
             <button className="btn btn-ghost btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }} onClick={cancelarVista}>✕ Cancelar vista</button>
             <button className="btn btn-ghost btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }} onClick={() => setEditando(true)}>✎ Editar datos</button>
           </div>
@@ -204,9 +226,56 @@ function ResumenCard({ expediente, onGuardado }) {
 
 // ── Defendidos ─────────────────────────────────────────────────
 function DefendidosCard({ expedienteId, defendidos, onCambio }) {
-  const [form, setForm] = useState({ nombre: '', fecha_nacimiento: '', vinculo: '', observaciones: '' })
+  const [form, setForm] = useState({ nombre: '', dni: '', fecha_nacimiento: '', vinculo: '', observaciones: '' })
   const [agregando, setAgregando] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [leyendo, setLeyendo] = useState(false)
+  const [propuestas, setPropuestas] = useState(null)  // personas leídas del archivo
+  const [coincidencias, setCoincidencias] = useState([])
+
+  useEffect(() => {
+    api(`/api/expedientes/${expedienteId}/coincidencias`).then(setCoincidencias).catch(() => setCoincidencias([]))
+  }, [expedienteId, defendidos])
+
+  async function leerArchivo(archivo) {
+    if (!archivo) return
+    setLeyendo(true)
+    try {
+      const fd = new FormData()
+      fd.append('archivo', archivo)
+      const r = await api(`/api/expedientes/${expedienteId}/leer-personas`, { method: 'POST', body: fd, isForm: true })
+      if (!r.personas.length) {
+        avisar('No encontré personas con DNI o fecha de nacimiento en ese archivo.', 'info')
+        setPropuestas(null)
+      } else {
+        setPropuestas(r.personas.map((p) => ({ ...p, nombre: p.nombre || '', dni: p.dni || '', fecha_nacimiento: p.fecha_nacimiento || '', vinculo: p.vinculo || '', elegida: !p.ya_cargado && !!p.nombre })))
+      }
+    } catch (e) { avisar(e.message, 'error') } finally { setLeyendo(false) }
+  }
+
+  function cambiarPropuesta(i, campo, valor) {
+    setPropuestas((ps) => ps.map((p, j) => (j === i ? { ...p, [campo]: valor } : p)))
+  }
+
+  async function cargarElegidas() {
+    const elegidas = propuestas.filter((p) => p.elegida && p.nombre.trim())
+    if (!elegidas.length) { avisar('Marcá al menos una persona (con nombre).', 'error'); return }
+    setAgregando(true)
+    try {
+      for (const p of elegidas) {
+        await api('/api/expedientes/defendidos', {
+          method: 'POST',
+          body: {
+            expediente_id: parseInt(expedienteId, 10), nombre: p.nombre.trim(), dni: p.dni || null,
+            fecha_nacimiento: p.fecha_nacimiento || null, vinculo: p.vinculo || null,
+          },
+        })
+      }
+      avisar(elegidas.length === 1 ? 'Se cargó 1 defendido.' : `Se cargaron ${elegidas.length} defendidos.`)
+      setPropuestas(null)
+      onCambio()
+    } catch (e) { avisar(e.message, 'error') } finally { setAgregando(false) }
+  }
 
   async function agregar() {
     if (!form.nombre.trim()) return
@@ -217,12 +286,13 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
         body: {
           expediente_id: parseInt(expedienteId, 10),
           nombre: form.nombre,
+          dni: form.dni.trim() || null,
           fecha_nacimiento: form.fecha_nacimiento || null,
           vinculo: form.vinculo || null,
           observaciones: form.observaciones || null,
         },
       })
-      setForm({ nombre: '', fecha_nacimiento: '', vinculo: '', observaciones: '' })
+      setForm({ nombre: '', dni: '', fecha_nacimiento: '', vinculo: '', observaciones: '' })
       setMostrarForm(false)
       onCambio()
     } catch (e) { avisar(e.message, 'error') } finally { setAgregando(false) }
@@ -238,16 +308,68 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
     <div className="card">
       <div className="card-header">
         <span className="card-title"><Icono nombre="personas" size={15} color="var(--teal)" /> Nuestros defendidos</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => setMostrarForm((v) => !v)}>{mostrarForm ? 'Cancelar' : '+ Agregar'}</button>
+        <div className="row" style={{ gap: 6 }}>
+          <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }} title="Subí la vista, la demanda o un escrito: el sistema propone las personas que aparecen con su DNI y fecha de nacimiento">
+            {leyendo ? <span className="spin" /> : <><Icono nombre="doc" size={13} /> Leer de un PDF o Word</>}
+            <input type="file" accept=".pdf,.docx" style={{ display: 'none' }} disabled={leyendo}
+              onChange={(e) => { leerArchivo(e.target.files[0]); e.target.value = '' }} />
+          </label>
+          <button className="btn btn-ghost btn-sm" onClick={() => setMostrarForm((v) => !v)}>{mostrarForm ? 'Cancelar' : '+ Agregar'}</button>
+        </div>
       </div>
       <div className="card-body">
+        {coincidencias.length > 0 && (
+          <div className="alert alert-warn" style={{ marginBottom: 12 }}>
+            <strong>Otras causas con el mismo DNI:</strong>
+            {coincidencias.map((c, i) => (
+              <div key={i} style={{ marginTop: 4, fontSize: 13 }}>
+                {c.defendido} (DNI {c.dni}) también está en el expte.{' '}
+                <a href={`/expedientes/${c.expediente_id}`} style={{ fontWeight: 600 }}>{c.numero}</a>
+                {c.caratula ? ` — ${c.caratula.slice(0, 70)}` : ''}
+              </div>
+            ))}
+          </div>
+        )}
+        {propuestas && (
+          <div style={{ background: '#f7f8fc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+              <strong style={{ fontSize: 13.5 }}>Personas encontradas en el archivo</strong>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPropuestas(null)}>Cerrar</button>
+            </div>
+            <div className="tl-meta" style={{ marginBottom: 8 }}>Revisá los datos, corregí lo que haga falta y marcá a quiénes cargar.</div>
+            {propuestas.map((p, i) => (
+              <div key={i} style={{ borderTop: '1px solid var(--border)', padding: '8px 0' }}>
+                <label className="row" style={{ gap: 6, fontSize: 13, marginBottom: 6 }}>
+                  <input type="checkbox" checked={p.elegida} onChange={(e) => cambiarPropuesta(i, 'elegida', e.target.checked)} />
+                  <strong>{p.nombre || 'Sin nombre'}</strong>
+                  {p.ya_cargado && <span className="badge badge-archivo">ya está cargado</span>}
+                </label>
+                <div className="field-row" style={{ gap: 8 }}>
+                  <div className="field" style={{ marginBottom: 4 }}><label>Nombre</label><input value={p.nombre} onChange={(e) => cambiarPropuesta(i, 'nombre', e.target.value)} /></div>
+                  <div className="field" style={{ marginBottom: 4 }}><label>DNI</label><input value={p.dni} onChange={(e) => cambiarPropuesta(i, 'dni', e.target.value)} /></div>
+                </div>
+                <div className="field-row" style={{ gap: 8 }}>
+                  <div className="field" style={{ marginBottom: 4 }}><label>Fecha de nacimiento</label><input type="date" value={p.fecha_nacimiento} onChange={(e) => cambiarPropuesta(i, 'fecha_nacimiento', e.target.value)} /></div>
+                  <div className="field" style={{ marginBottom: 4 }}><label>Vínculo / rol</label><input value={p.vinculo} onChange={(e) => cambiarPropuesta(i, 'vinculo', e.target.value)} placeholder="NNA, progenitor/a..." /></div>
+                </div>
+                {p.contexto && <div className="tl-meta" style={{ fontStyle: 'italic' }}>"…{p.contexto.slice(0, 220)}…"</div>}
+              </div>
+            ))}
+            <button className="btn btn-teal btn-sm" style={{ marginTop: 8 }} onClick={cargarElegidas} disabled={agregando}>
+              {agregando ? <span className="spin" /> : 'Cargar las marcadas'}
+            </button>
+          </div>
+        )}
         {mostrarForm && (
           <div style={{ background: '#f7f8fc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
             <div className="field-row">
               <div className="field"><label>Nombre *</label><input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} /></div>
               <div className="field"><label>Fecha de nacimiento</label><input type="date" value={form.fecha_nacimiento} onChange={(e) => setForm((f) => ({ ...f, fecha_nacimiento: e.target.value }))} /></div>
             </div>
-            <div className="field"><label>Vínculo / rol</label><input value={form.vinculo} onChange={(e) => setForm((f) => ({ ...f, vinculo: e.target.value }))} placeholder="NNA, progenitor/a, etc." /></div>
+            <div className="field-row">
+              <div className="field"><label>DNI</label><input value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} placeholder="Ej: 45.123.456" /></div>
+              <div className="field"><label>Vínculo / rol</label><input value={form.vinculo} onChange={(e) => setForm((f) => ({ ...f, vinculo: e.target.value }))} placeholder="NNA, progenitor/a, etc." /></div>
+            </div>
             <div className="field" style={{ marginBottom: 8 }}><label>Observaciones</label><input value={form.observaciones} onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))} /></div>
             <button className="btn btn-teal btn-sm" onClick={agregar} disabled={agregando}>{agregando ? <span className="spin" /> : 'Agregar defendido'}</button>
           </div>
@@ -259,7 +381,7 @@ function DefendidosCard({ expedienteId, defendidos, onCambio }) {
             <div key={d.id} className="row" style={{ justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #edf0f5' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{d.nombre}{d.fecha_nacimiento && <span className="muted" style={{ fontWeight: 400 }}> · {edadDesde(d.fecha_nacimiento)} años</span>}</div>
-                <div className="tl-meta">{[d.fecha_nacimiento && `Nac. ${fechaCorta(d.fecha_nacimiento)}`, d.vinculo, d.observaciones].filter(Boolean).join(' · ')}</div>
+                <div className="tl-meta">{[d.dni && `DNI ${d.dni}`, d.fecha_nacimiento && `Nac. ${fechaCorta(d.fecha_nacimiento)}`, d.vinculo, d.observaciones].filter(Boolean).join(' · ')}</div>
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => eliminar(d.id)}>✕</button>
             </div>

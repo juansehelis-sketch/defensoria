@@ -108,6 +108,7 @@ class Defendido(DefendidoBase):
 class Expediente(ExpedienteBase):
     id: int
     legajo_id: Optional[int] = None
+    etiquetas: Optional[List[str]] = []
     fecha_creacion: datetime
     fecha_actualizacion: datetime
 
@@ -142,6 +143,7 @@ class EntradaSalida(EntradaSalidaBase):
     id: int
     expediente_id: Optional[int] = None
     numero_expediente: Optional[str] = None
+    etiquetas: Optional[List[str]] = []
     fecha_creacion: datetime
 
     class Config:
