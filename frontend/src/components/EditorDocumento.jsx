@@ -8,7 +8,9 @@
  * - No es "controlado": el contenido inicial entra por `inicial` y cada cambio
  *   sale por `onChange(html)`. Para cargar otro documento, cambiar la `key`.
  *
- * - `membrete` ({encabezado, pie}) se muestra arriba y abajo de la hoja, sin
+ * - `membrete` trae la hoja real (márgenes y letra del Word) y el encabezado/pie:
+ *   como imagen fiel sacada del PDF (encabezado_img/pie_img) o, si no se pudo,
+ *   como HTML aproximado (encabezado/pie). Se muestran arriba y abajo, sin
  *   editar: es el del Word de la plantilla y se conserva siempre.
  * - Las imágenes del Word (logos, sellos) llegan con data-src y se ven; no se
  *   pueden mover de lugar (en el Word se copia la original). Las partes que el
@@ -135,8 +137,10 @@ const CSS = `
 .hoja-barra .sep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
 .cambios ins { background: #d9f5e3; color: #065f46; text-decoration: underline; }
 .cambios del { background: #fde2e2; color: #9b1c1c; text-decoration: line-through; }
+.membrete-img { display: block; max-width: 100%; height: auto; user-select: none; pointer-events: none; }
 @media (max-width: 760px) {
-  .hoja { padding: 18px 14px 22px; font-size: 15px; min-height: 300px; }
+  .hoja { padding: 18px 14px 22px !important; font-size: 15px; min-height: 300px; }
+  .membrete-img { margin-left: auto !important; margin-right: auto !important; margin-top: 0 !important; }
   .hoja-cuerpo { min-height: 240px; }
   .hoja-fondo { padding: 8px 4px; }
 }
@@ -183,6 +187,20 @@ export default function EditorDocumento({ inicial, editable = true, onChange, me
     resolverImagenes(encRef.current)
     resolverImagenes(pieRef.current)
   }, [membrete])
+
+  // La hoja imita la del Word: ancho, márgenes y letra
+  const pag = membrete?.pagina
+  const encImg = membrete?.encabezado_img
+  const pieImg = membrete?.pie_img
+  const sans = /arial|helvetica|calibri|verdana|tahoma|segoe|aptos|century gothic/i.test(pag?.fuente || '')
+  const estiloHoja = pag ? {
+    maxWidth: `${pag.ancho}pt`,
+    paddingLeft: `${pag.izq}pt`,
+    paddingRight: `${pag.der}pt`,
+    ...(encImg ? { paddingTop: 0 } : {}),
+    fontFamily: pag.fuente ? `"${pag.fuente}", ${sans ? 'Arial, sans-serif' : "'Times New Roman', serif"}` : undefined,
+  } : undefined
+  const espacioEnc = encImg ? Math.max(6, (pag?.arriba || 0) - (encImg.y + encImg.alto)) : 0
 
   function avisar() {
     if (onChange && ref.current) onChange(ref.current.innerHTML)
@@ -247,7 +265,11 @@ export default function EditorDocumento({ inicial, editable = true, onChange, me
         </div>
       )}
       <div className="hoja-fondo">
-        <div className="hoja">
+        <div className="hoja" style={estiloHoja}>
+          {encImg && (
+            <img className="membrete-img" alt="" src={urlArchivo(encImg.src)}
+              style={{ width: `${encImg.ancho}pt`, marginLeft: `${encImg.x - (pag?.izq || 0)}pt`, marginTop: `${encImg.y}pt`, marginBottom: `${espacioEnc}pt` }} />
+          )}
           {membrete?.encabezado && (
             <div ref={encRef} className="hoja-membrete enc" dangerouslySetInnerHTML={{ __html: membrete.encabezado }} />
           )}
@@ -263,6 +285,10 @@ export default function EditorDocumento({ inicial, editable = true, onChange, me
             onKeyDown={editable ? alTeclear : undefined}
             onPaste={editable ? alPegar : undefined}
           />
+          {pieImg && (
+            <img className="membrete-img" alt="" src={urlArchivo(pieImg.src)}
+              style={{ width: `${pieImg.ancho}pt`, marginLeft: `${pieImg.x - (pag?.izq || 0)}pt`, marginTop: '28pt' }} />
+          )}
           {membrete?.pie && (
             <div ref={pieRef} className="hoja-membrete pie" dangerouslySetInnerHTML={{ __html: membrete.pie }} />
           )}

@@ -35,6 +35,27 @@ class Usuario(Base):
     historial = relationship("Historial", back_populates="usuario")
 
 
+class RegistroIngreso(Base):
+    """
+    Cada intento de ingreso al sistema (bien o con clave incorrecta): fecha y
+    hora exactas, IP, conexión (proveedor de internet), dispositivo y ubicación
+    aproximada. Solo lo ve el titular del sistema (ver usuarios.EMAIL_VE_INGRESOS).
+    """
+    __tablename__ = "registro_ingresos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    email = Column(String)                     # lo que se escribió (sirve si falló)
+    exito = Column(Boolean, default=True)
+    fecha = Column(DateTime, default=ahora, index=True)
+    ip = Column(String, nullable=True)
+    dispositivo = Column(String, nullable=True)  # "Computadora · Windows · Chrome"
+    navegador = Column(String, nullable=True)    # user-agent completo (recortado)
+    lugar = Column(String, nullable=True)        # ciudad/provincia (por IP) — se resuelve al consultar
+    proveedor = Column(String, nullable=True)    # empresa de la conexión (ej. la red del MPD o un proveedor hogareño)
+    tipo_conexion = Column(String, nullable=True)  # "datos móviles", "VPN / servidor"...
+
+
 class Expediente(Base):
     __tablename__ = "expedientes"
 

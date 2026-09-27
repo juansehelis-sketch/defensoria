@@ -232,6 +232,7 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
   const [guardado, setGuardado] = useState('')  // '' | pendiente | guardando | guardado | error
   const [verCambios, setVerCambios] = useState(null)  // {antes, despues} | null
   const [verVersiones, setVerVersiones] = useState(false)
+  const [editandoC, setEditandoC] = useState(null)  // {i, texto}
   const htmlActual = useRef(null)
   const pendiente = useRef(null)
   const timer = useRef(null)
@@ -285,6 +286,15 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
   async function cerrar() {
     if (pendiente.current !== null) await guardar()
     onClose()
+  }
+
+  async function guardarComentario() {
+    try {
+      const r = await api(`/api/proyectos/${proyecto.id}/comentarios/${editandoC.i}`, { method: 'PUT', body: { texto: editandoC.texto } })
+      setDet((d) => ({ ...d, comentarios: r.comentarios }))
+      setEditandoC(null)
+      avisar('Comentario corregido')
+    } catch (e) { avisar(e.message, 'error') }
   }
 
   function ultimaDelDespachante() {
@@ -448,11 +458,24 @@ function DetalleProyecto({ proyecto, onClose, onCambio }) {
           <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #edf0f5' }}>
             <div className="row" style={{ gap: 6 }}>
               <strong style={{ fontSize: 12 }}>{c.autor}</strong>
-              <span className="tl-meta">{fechaHora(c.fecha)}</span>
+              <span className="tl-meta">{fechaHora(c.fecha)}{c.editado ? ' · editado' : ''}</span>
               {c.tipo === 'devolucion' && <span className="badge badge-archivo">devolución</span>}
               {c.tipo === 'subido' && <span className="badge badge-sentencia">subido</span>}
+              {det && editandoC?.i !== i && (c.autor === usuario?.nombre || ['admin', 'defensora'].includes(usuario?.rol)) && (
+                <button className="btn btn-ghost btn-sm" style={{ padding: '0 8px', marginLeft: 'auto' }} onClick={() => setEditandoC({ i, texto: c.texto })}>Editar</button>
+              )}
             </div>
-            <div style={{ fontSize: 13, marginTop: 2 }}>{c.texto}</div>
+            {editandoC?.i === i ? (
+              <div style={{ marginTop: 4 }}>
+                <textarea value={editandoC.texto} onChange={(e) => setEditandoC({ ...editandoC, texto: e.target.value })} style={{ minHeight: 60 }} />
+                <div className="row" style={{ gap: 6, marginTop: 4 }}>
+                  <button className="btn btn-teal btn-sm" onClick={guardarComentario}>Guardar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditandoC(null)}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, marginTop: 2 }}>{c.texto}</div>
+            )}
           </div>
         ))}
       </div>
@@ -541,6 +564,12 @@ function MisPlantillas({ onClose, onCambio }) {
   const [error, setError] = useState('')
   const [editando, setEditando] = useState(null)  // {id, nombre, categoria}
   const [viendo, setViendo] = useState(null)      // {id, nombre, html}
+  const [variables, setVariables] = useState(null)
+
+  async function verVariables() {
+    if (variables) { setVariables(null); return }
+    try { setVariables(await api('/api/modelos/variables')) } catch (e) { avisar(e.message, 'error') }
+  }
   const inputRef = useRef(null)
 
   async function cargar() {
@@ -614,8 +643,26 @@ function MisPlantillas({ onClose, onCambio }) {
           <div className="card" style={{ padding: 14, marginBottom: 16, background: '#f7f8fc' }}>
             <div className="card-title" style={{ marginBottom: 4 }}>Agregar una plantilla (Word .docx)</div>
             <div className="tl-meta" style={{ marginBottom: 10 }}>
-              En el Word podés escribir <strong>@numero</strong>, <strong>@caratula</strong>, <strong>@juzgado</strong>, <strong>@fecha</strong> y <strong>@mes</strong>: al armar el proyecto se completan solos con los datos del expediente y la fecha del día.
+              En el Word podés escribir variables que se completan solas al armar el proyecto: <strong>@numero</strong>, <strong>@caratula</strong>, <strong>@juzgado</strong>, <strong>@fecha</strong>, <strong>@defendidos</strong>, <strong>@defendidos_datos</strong> (con edad y DNI), <strong>@defendido1</strong>, <strong>@edad1</strong>, <strong>@dni1</strong>…{' '}
+              <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '1px 8px' }} onClick={verVariables}>
+                {variables ? 'Ocultar la lista' : 'Ver todas'}
+              </button>
             </div>
+            {variables && (
+              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, maxHeight: 260, overflowY: 'auto' }}>
+                {[...new Set(variables.map((v) => v.grupo))].map((g) => (
+                  <div key={g} style={{ marginBottom: 6 }}>
+                    <div className="card-title" style={{ fontSize: 11, margin: '4px 0' }}>{g}</div>
+                    {variables.filter((v) => v.grupo === g).map((v) => (
+                      <div key={v.token} style={{ fontSize: 13, padding: '2px 0' }}>
+                        <span className="mono" style={{ color: 'var(--navy)', fontWeight: 600 }}>@{v.token}</span> — {v.etiqueta}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div className="tl-meta" style={{ marginTop: 4 }}>Si al expediente le falta el dato, queda escrito [completar: …] para que no se pase por alto.</div>
+              </div>
+            )}
             <div className="field">
               <input ref={inputRef} type="file" accept=".docx"
                 onChange={(e) => { const f = e.target.files[0] || null; setArchivo(f); if (f && !nombre) setNombre(f.name.replace(/\.docx$/i, '')) }} />

@@ -230,6 +230,7 @@ class ComentarioProyecto(BaseModel):
     fecha: datetime
     texto: str
     tipo: Optional[str] = None  # envio, devolucion, correccion, subido
+    editado: Optional[datetime] = None
 
 
 class ArchivoProyecto(BaseModel):

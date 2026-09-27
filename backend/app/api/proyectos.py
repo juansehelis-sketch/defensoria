@@ -263,17 +263,20 @@ async def plantilla_html(plantilla_id: int, db: Session = Depends(get_db),
     return {"html": documentos.docx_a_html(datos), "membrete": documentos.membrete_html(datos)}
 
 
-def _valores_variables(exp: Expediente) -> dict:
-    """Lo que reemplaza a @numero, @caratula, @juzgado, @fecha y @mes."""
-    from app.services.plantillas import fecha_en_letras, _MESES
-    h = hoy()
-    return {
-        "numero": exp.numero or "",
-        "caratula": exp.caratula or "",
-        "juzgado": exp.juzgado or "",
-        "fecha": fecha_en_letras(h),
-        "mes": _MESES[h.month - 1],
-    }
+def _valores_variables(db, exp: Expediente) -> dict:
+    """Valor de cada @variable para este expediente (las mismas de la Biblioteca:
+    expediente, defendidos, fecha...). Si falta el dato queda "[completar: ...]"
+    bien visible, para que no pase desapercibido."""
+    from app.services.plantillas import construir_contexto, ALIAS, ETIQUETAS
+    ctx = construir_contexto(db, exp)
+    valores = {}
+    for k, v in ctx.items():
+        v = (v or "").strip()
+        valores[k] = v or f"[completar: {ETIQUETAS.get(k, k)}]"
+    for alias, destino in ALIAS.items():
+        if destino in valores:
+            valores[alias] = valores[destino]
+    return valores
 
 
 @router.get("/plantillas/{plantilla_id}/armar")
@@ -289,7 +292,7 @@ async def armar_desde_plantilla(plantilla_id: int, expediente_id: int, db: Sessi
     datos = storage.leer(Path(pl.archivo_url).name)
     if datos is None:
         raise HTTPException(status_code=404, detail="No se encontró el archivo de la plantilla")
-    lleno = documentos.reemplazar_variables(datos, _valores_variables(exp))
+    lleno = documentos.reemplazar_variables(datos, _valores_variables(db, exp))
     base_url = pl.archivo_url if lleno is datos else _guardar_bytes(lleno, ".docx", _DOCX_MIME)
     return {"html": documentos.docx_a_html(lleno), "membrete": documentos.membrete_html(lleno), "base_url": base_url}
 
@@ -631,6 +634,41 @@ async def marcar_subido(
     ))
     from app.utils.auditoria import registrar
     registrar(db, usuario, "subió", "proyecto", f"Dictamen subido — expte. {p.expediente_numero}")
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@router.put("/{proyecto_id}/comentarios/{indice}", response_model=ProyectoSchema)
+async def editar_comentario(
+    proyecto_id: int,
+    indice: int,
+    datos: dict = Body(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Corrige el texto de un comentario de la conversación (lo puede hacer quien
+    lo escribió, o administración/defensora). Si ese texto también quedó en el
+    historial del expediente, se corrige ahí igual."""
+    p = _get_proyecto(db, proyecto_id)
+    comentarios = list(p.comentarios or [])
+    if not 0 <= indice < len(comentarios):
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    c = dict(comentarios[indice])
+    if c.get("autor") != usuario.nombre and usuario.rol not in ("admin", "defensora"):
+        raise HTTPException(status_code=403, detail="Solo quien escribió el comentario puede corregirlo")
+    nuevo = str(datos.get("texto") or "").strip()
+    if not nuevo:
+        raise HTTPException(status_code=400, detail="El comentario no puede quedar vacío")
+    viejo = c.get("texto") or ""
+    c["texto"] = nuevo
+    c["editado"] = ahora().isoformat()
+    comentarios[indice] = c
+    p.comentarios = comentarios
+    if viejo and viejo != nuevo:
+        for h in db.query(Historial).filter(Historial.expediente_id == p.expediente_id).all():
+            if h.descripcion and viejo in h.descripcion:
+                h.descripcion = h.descripcion.replace(viejo, nuevo)
     db.commit()
     db.refresh(p)
     return p

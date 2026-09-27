@@ -28,6 +28,7 @@ CATALOGO = [
     ("conexos", "Expedientes conexos", "Expediente"),
     # Del/los defendido/s (suele haber más de uno → numerados)
     ("defendidos", "Todos los defendidos (lista)", "Defendido"),
+    ("defendidos_datos", "Todos los defendidos con edad y DNI", "Defendido"),
     ("defendido1", "1º defendido — nombre", "Defendido"),
     ("edad1", "1º defendido — edad", "Defendido"),
     ("dni1", "1º defendido — DNI", "Defendido"),
@@ -47,6 +48,8 @@ CATALOGO = [
     ("defensoria", "Dependencia (Defensoría)", "Institucional"),
     ("ciudad", "Ciudad", "Institucional"),
     ("fecha", "Fecha de hoy (en letras)", "Institucional"),
+    ("mes", "Mes actual (en letras)", "Institucional"),
+    ("anio", "Año actual", "Institucional"),
 ]
 
 # Alias que también se aceptan al escribir (apuntan a un token del catálogo).
@@ -84,6 +87,17 @@ def _edad(fnac, hoy) -> str:
     return str(años)
 
 
+def _datos_defendido(d, hoy_fecha) -> str:
+    """"PÉREZ, Juan (12 años, DNI 45.123.456)" — lo que haya cargado."""
+    extra = []
+    edad = _edad(d.fecha_nacimiento, hoy_fecha)
+    if edad:
+        extra.append(f"{edad} años")
+    if d.dni:
+        extra.append(f"DNI {d.dni}")
+    return d.nombre + (f" ({', '.join(extra)})" if extra else "")
+
+
 def construir_contexto(db, exp) -> dict:
     """Arma el diccionario {token: valor} a partir del expediente y sus datos."""
     from app.models import Usuario
@@ -114,6 +128,9 @@ def construir_contexto(db, exp) -> dict:
         "defensoria": DEPENDENCIA,
         "ciudad": CIUDAD,
         "fecha": fecha_en_letras(hoy_fecha),
+        "mes": _MESES[hoy_fecha.month - 1],
+        "anio": str(hoy_fecha.year),
+        "defendidos_datos": "; ".join(_datos_defendido(d, hoy_fecha) for d in defs if d.nombre) if defs else "",
     }
     # Defendidos numerados (1..6): generalmente hay más de uno.
     for i in range(1, 7):

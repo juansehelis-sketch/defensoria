@@ -634,8 +634,8 @@ _CACHE_PREVIEW = {}
 
 def _url_preview(blob: bytes, nombre_parte: str) -> str | None:
     """Sube una copia visible de la imagen y devuelve /uploads/<hash>.ext.
-    EMF/WMF (formato viejo de Word, típico del escudo del membrete) se pasan a SVG
-    con LibreOffice para que se vean nítidos; si no hay LibreOffice, a PNG."""
+    EMF/WMF (formato viejo de Word, típico del escudo del membrete) se dibujan con
+    LibreOffice en alta resolución y se recortan; si no hay LibreOffice, Pillow."""
     from app.services import storage
     clave = hashlib.sha1(blob).hexdigest()[:32]
     if clave in _CACHE_PREVIEW:
@@ -645,7 +645,8 @@ def _url_preview(blob: bytes, nombre_parte: str) -> str | None:
     if ext in (".png", ".gif", ".jpg", ".jpeg"):
         datos, ext_out = blob, (".jpg" if ext == ".jpeg" else ext)
     elif ext in (".emf", ".wmf") and _soffice():
-        datos, ext_out = convertir_libreoffice(blob, ext, "svg", timeout=40), ".svg"
+        pdf = convertir_libreoffice(blob, ext, "pdf", timeout=40)
+        datos, ext_out = (_imagen_desde_pdf(pdf) if pdf else None), ".png"
     if not datos:
         try:
             from PIL import Image
@@ -1070,16 +1071,173 @@ def _membrete_parte(doc, parte):
     return None
 
 
+def _pagina(doc) -> dict:
+    """Tamaño de hoja, márgenes (pt) y letra del Word: el editor imita la hoja real."""
+    out = {"ancho": 595.3, "izq": 85.0, "der": 56.7, "arriba": 70.9, "fuente": None}
+    try:
+        s = doc.sections[-1]
+        out.update({"ancho": round(s.page_width.pt, 1), "izq": round(s.left_margin.pt, 1),
+                    "der": round(s.right_margin.pt, 1), "arriba": round(s.top_margin.pt, 1)})
+    except Exception:
+        pass
+    try:
+        out["fuente"] = _formato_base(doc).get("fuente_efectiva")
+    except Exception:
+        pass
+    return out
+
+
+def _recortar_blanco(img, pad: int):
+    """Recorte al contenido (lo que no es blanco) de una imagen PIL."""
+    from PIL import ImageOps
+    gris = ImageOps.invert(img.convert("L")).point(lambda v: 255 if v > 12 else 0)
+    bbox = gris.getbbox()
+    if not bbox:
+        return None, None
+    x0, y0, x1, y1 = bbox
+    caja = (max(x0 - pad, 0), max(y0 - pad, 0), min(x1 + pad, img.width), min(y1 + pad, img.height))
+    return img.crop(caja), caja
+
+
+def _pdf_primera_pagina(pdf: bytes, escala: float):
+    import pypdfium2 as pdfium
+    pdoc = pdfium.PdfDocument(pdf)
+    pagina = pdoc[0]
+    ancho_pt, alto_pt = pagina.get_size()
+    img = pagina.render(scale=escala).to_pil().convert("RGB")
+    return img, ancho_pt, alto_pt
+
+
+def _imagen_desde_pdf(pdf: bytes) -> bytes | None:
+    """PNG recortado de lo dibujado en la 1ª página (para EMF/WMF convertidos)."""
+    try:
+        img, _, _ = _pdf_primera_pagina(pdf, 4)
+        recorte, _ = _recortar_blanco(img, 4)
+        if recorte is None:
+            return None
+        buf = io.BytesIO()
+        recorte.save(buf, "PNG", optimize=True)
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[!] No se pudo dibujar la imagen: {e}")
+        return None
+
+
+def _recortes_membrete(pdf: bytes, escala: float = 3) -> dict:
+    """De la 1ª página de un PDF que solo tiene encabezado y pie, recorta cada uno.
+    Devuelve {"encabezado": (png, x, y, ancho, alto), "pie": (...)} en pt."""
+    img, _, _ = _pdf_primera_pagina(pdf, escala)
+    out = {}
+    mitad = img.height // 2
+    for nombre, (y0, y1) in (("encabezado", (0, mitad)), ("pie", (mitad, img.height))):
+        zona = img.crop((0, y0, img.width, y1))
+        recorte, caja = _recortar_blanco(zona, int(3 * escala))
+        if recorte is None:
+            continue
+        buf = io.BytesIO()
+        recorte.save(buf, "PNG", optimize=True)
+        out[nombre] = (buf.getvalue(), caja[0] / escala, (y0 + caja[1]) / escala,
+                       recorte.width / escala, recorte.height / escala)
+    return out
+
+
+_CACHE_MEMBRETE = {}
+
+
+def _clave_membrete(doc) -> str:
+    """Huella del encabezado/pie (y la hoja): si no cambia, se reusa la imagen."""
+    from lxml import etree
+    h = hashlib.sha1()
+    for rel in doc.part.rels.values():
+        if rel.reltype.endswith("/header") or rel.reltype.endswith("/footer"):
+            parte = rel.target_part
+            h.update(parte.blob)
+            for r2 in parte.rels.values():
+                if not r2.is_external:
+                    h.update(r2.target_part.blob)
+    try:
+        h.update(etree.tostring(doc.sections[-1]._sectPr))
+    except Exception:
+        pass
+    return h.hexdigest()[:32]
+
+
+def _vista_membrete(doc) -> dict | None:
+    """Imagen del encabezado y del pie tal como salen impresos (con LibreOffice).
+    Así en pantalla se ven idénticos al Word/PDF, logos incluidos."""
+    if not _soffice():
+        return None
+    import json
+    from app.services import storage
+    clave = _clave_membrete(doc)
+    if clave in _CACHE_MEMBRETE:
+        return _CACHE_MEMBRETE[clave]
+    guardado = storage.leer(f"membrete_{clave}.json")
+    if guardado:
+        try:
+            res = json.loads(guardado.decode())
+            _CACHE_MEMBRETE[clave] = res
+            return res
+        except Exception:
+            pass
+    # Copia del Word sin el cuerpo: la página queda solo con encabezado y pie
+    copia = copy.deepcopy(doc.element.body)
+    cuerpo = doc.element.body
+    for hijo in list(cuerpo.iterchildren()):
+        if hijo.tag != _qn("w:sectPr"):
+            cuerpo.remove(hijo)
+    doc.add_paragraph()
+    buf = io.BytesIO()
+    doc.save(buf)
+    cuerpo.getparent().replace(cuerpo, copia)  # se deja el documento como estaba
+    pdf = convertir_libreoffice(buf.getvalue(), ".docx", "pdf")
+    if not pdf:
+        return None
+    try:
+        recortes = _recortes_membrete(pdf)
+    except Exception as e:
+        print(f"[!] No se pudo recortar el membrete: {e}")
+        return None
+    res = {}
+    for nombre, (png, x, y, ancho, alto) in recortes.items():
+        archivo = f"membrete_{clave}_{nombre}.png"
+        try:
+            storage.guardar(archivo, png, "image/png")
+        except Exception as e:
+            print(f"[!] No se pudo guardar el membrete: {e}")
+            return None
+        res[nombre] = {"src": f"/uploads/{archivo}", "x": round(x, 1), "y": round(y, 1),
+                       "ancho": round(ancho, 1), "alto": round(alto, 1)}
+    try:
+        storage.guardar(f"membrete_{clave}.json", json.dumps(res).encode(), "application/json")
+    except Exception:
+        pass
+    _CACHE_MEMBRETE[clave] = res
+    return res
+
+
 def membrete_html(datos: bytes | None) -> dict:
-    """Encabezado y pie del Word para mostrarlos (no se editan)."""
+    """Encabezado y pie del Word para mostrarlos (no se editan), más la hoja
+    (márgenes y letra). Si hay LibreOffice, el membrete va como imagen fiel
+    ("encabezado_img"/"pie_img"); si no, como HTML aproximado."""
+    vacio = {"encabezado": "", "pie": "", "pagina": None}
     if not datos:
-        return {"encabezado": "", "pie": ""}
+        return vacio
     from docx import Document
     try:
         doc = Document(io.BytesIO(datos))
     except Exception:
-        return {"encabezado": "", "pie": ""}
-    out = {}
+        return vacio
+    out = {"pagina": _pagina(doc)}
+    try:
+        vista = _vista_membrete(Document(io.BytesIO(datos)))
+    except Exception as e:
+        print(f"[!] No se pudo armar la vista del membrete: {e}")
+        vista = None
+    if vista is not None:
+        out.update({"encabezado": "", "pie": "",
+                    "encabezado_img": vista.get("encabezado"), "pie_img": vista.get("pie")})
+        return out
     for parte, clave in (("header", "encabezado"), ("footer", "pie")):
         hf = _membrete_parte(doc, parte)
         html = ""
@@ -1108,11 +1266,14 @@ def docx_valido(datos: bytes) -> bool:
 # Variables @ de las plantillas
 # ═══════════════════════════════════════════════════════════════
 
-_VAR_RE = re.compile(r"@(n[uú]mero|car[aá]tula|juzgado|fecha|mes)(?![\wáéíóúñÁÉÍÓÚÑ])", re.IGNORECASE)
+_VAR_RE = re.compile(r"@([a-zA-ZñÑáéíóúÁÉÍÓÚ_][a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ_]*)")
 
 
 def _clave_var(txt: str) -> str:
-    return txt.lower().replace("ú", "u").replace("á", "a")
+    t = txt.lower()
+    for a, b in (("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")):
+        t = t.replace(a, b)
+    return t
 
 
 def _reemplazar_en_parrafo(p_el, valores: dict) -> int:
@@ -1122,7 +1283,8 @@ def _reemplazar_en_parrafo(p_el, valores: dict) -> int:
     if not ts:
         return 0
     completo = "".join(t.text or "" for t in ts)
-    coincidencias = list(_VAR_RE.finditer(completo))
+    # Solo las variables conocidas (un mail como x@mpd.gov.ar queda igual)
+    coincidencias = [m for m in _VAR_RE.finditer(completo) if _clave_var(m.group(1)) in valores]
     if not coincidencias:
         return 0
     # Posición de cada w:t dentro del texto completo
@@ -1155,8 +1317,9 @@ def _reemplazar_en_parrafo(p_el, valores: dict) -> int:
 
 
 def reemplazar_variables(datos: bytes, valores: dict) -> bytes:
-    """Completa @numero, @caratula, @juzgado, @fecha y @mes en todo el Word
-    (cuerpo, tablas, encabezado y pie), respetando el formato de cada palabra."""
+    """Completa las variables @ (valores: {"numero": ..., "defendido1": ...}) en
+    todo el Word (cuerpo, tablas, encabezado y pie), respetando el formato de
+    cada palabra. Las @ que no son variables conocidas quedan como están."""
     from docx import Document
     doc = Document(io.BytesIO(datos))
     total = 0

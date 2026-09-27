@@ -24,12 +24,22 @@ export default function Usuarios() {
   const [error, setError] = useState('')
   const [ingresos, setIngresos] = useState(null)
   const [cargIngresos, setCargIngresos] = useState(false)
+  const [historial, setHistorial] = useState(null)   // {mi_ip, registros}
+  const [cargHist, setCargHist] = useState(false)
+  const [filtroPersona, setFiltroPersona] = useState('')
+  const [soloFallidos, setSoloFallidos] = useState(false)
   const puedeVerIngresos = usuario?.email === EMAIL_VE_INGRESOS
 
   async function cargarIngresos() {
     setCargIngresos(true)
     try { setIngresos(await api('/api/usuarios/ingresos')) }
     catch (e) { avisar(e.message, 'error') } finally { setCargIngresos(false) }
+  }
+
+  async function cargarHistorial(persona = filtroPersona, fallidos = soloFallidos) {
+    setCargHist(true)
+    try { setHistorial(await api('/api/usuarios/ingresos/historial', { params: { usuario_id: persona || undefined, solo_fallidos: fallidos || undefined } })) }
+    catch (e) { avisar(e.message, 'error') } finally { setCargHist(false) }
   }
 
   async function cargar() {
@@ -191,6 +201,58 @@ export default function Usuarios() {
                 </table>
               </div>
             )}
+
+            {/* Historial detallado: cada ingreso e intento fallido */}
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
+              <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <strong style={{ fontSize: 14 }}>Historial de ingresos</strong>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <select value={filtroPersona} onChange={(e) => { setFiltroPersona(e.target.value); cargarHistorial(e.target.value, soloFallidos) }} style={{ width: 'auto' }}>
+                    <option value="">Todas las personas</option>
+                    {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                  </select>
+                  <label className="row" style={{ gap: 5, fontSize: 13 }}>
+                    <input type="checkbox" checked={soloFallidos} onChange={(e) => { setSoloFallidos(e.target.checked); cargarHistorial(filtroPersona, e.target.checked) }} />
+                    Solo claves incorrectas
+                  </label>
+                  <button className="btn btn-ghost btn-sm" onClick={() => cargarHistorial()} disabled={cargHist}>
+                    {cargHist ? <span className="spin" /> : (historial ? 'Actualizar' : 'Ver historial')}
+                  </button>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 0 }}>
+                Cada ingreso con hora exacta, desde qué dispositivo y qué conexión. La conexión (empresa de internet) es lo más útil para saber
+                si fue desde la red del MPD, desde una casa o desde un celular. Lo marcado como "tu conexión" salió de la misma conexión que estás usando ahora.
+              </p>
+              {historial && (
+                historial.registros.length === 0 ? <div className="empty" style={{ padding: 12 }}>Todavía no hay ingresos registrados.</div> : (
+                  <div className="table-scroll">
+                    <table className="data">
+                      <thead><tr><th>Fecha y hora</th><th>Persona</th><th>Resultado</th><th>Dispositivo</th><th>Conexión</th><th>Ubicación aprox.</th><th>IP</th></tr></thead>
+                      <tbody>
+                        {historial.registros.map((r) => (
+                          <tr key={r.id} style={{ cursor: 'default', background: r.exito ? undefined : '#fdf1f1' }}>
+                            <td className="mono" style={{ whiteSpace: 'nowrap' }}>{new Date(r.fecha).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                            <td>{r.nombre || <span className="muted">{r.email}</span>}</td>
+                            <td>{r.exito ? <span className="badge badge-sentencia">Ingresó</span> : <span className="badge badge-archivo">Clave incorrecta</span>}</td>
+                            <td style={{ fontSize: 13 }}>{r.dispositivo || '—'}</td>
+                            <td style={{ fontSize: 13 }}>
+                              {r.proveedor || (r.lugar ? '—' : <span className="muted">sin datos</span>)}
+                              {r.tipo_conexion && <div className="tl-meta">{r.tipo_conexion}</div>}
+                            </td>
+                            <td style={{ fontSize: 13 }}>{r.lugar || '—'}</td>
+                            <td className="mono" style={{ fontSize: 12 }}>
+                              {r.ip || '—'}
+                              {r.ip && r.ip === historial.mi_ip && <div><span className="badge badge-apelacion">tu conexión</span></div>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}
