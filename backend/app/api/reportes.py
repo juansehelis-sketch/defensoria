@@ -317,20 +317,85 @@ def _objeto_de_autos(autos: str) -> str:
     return s[:45] or "SIN CLASIFICAR"
 
 
+def _serie(fechas_ing, fechas_res, ini, fin):
+    """Ingresadas y resueltas agrupadas por día, semana o mes según el largo del período."""
+    from datetime import date as _date, timedelta
+    dias = (fin - ini).days
+    if dias <= 62:
+        paso = "dia"
+    elif dias <= 400:
+        paso = "semana"
+    else:
+        paso = "mes"
+
+    def inicio_de(d):
+        if paso == "dia":
+            return d
+        if paso == "semana":
+            return d - timedelta(days=d.weekday())
+        return _date(d.year, d.month, 1)
+
+    def siguiente(d):
+        if paso == "dia":
+            return d + timedelta(days=1)
+        if paso == "semana":
+            return d + timedelta(days=7)
+        return _date(d.year + (1 if d.month == 12 else 0), 1 if d.month == 12 else d.month + 1, 1)
+
+    cubetas = {}
+    d = inicio_de(ini)
+    while d < fin:
+        cubetas[d] = {"inicio": d, "fin": min(siguiente(d), fin) - timedelta(days=1), "ingresadas": 0, "resueltas": 0}
+        d = siguiente(d)
+    for f in fechas_ing:
+        c = cubetas.get(inicio_de(f))
+        if c:
+            c["ingresadas"] += 1
+    for f in fechas_res:
+        c = cubetas.get(inicio_de(f))
+        if c:
+            c["resueltas"] += 1
+    return paso, [dict(v, inicio=v["inicio"].isoformat(), fin=v["fin"].isoformat()) for v in cubetas.values()]
+
+
+def _distribucion(dias, cortes):
+    """Cuántos valores caen en cada tramo de días: cortes [(etiqueta, desde, hasta)]."""
+    out = []
+    for etiqueta, a, b in cortes:
+        out.append({"tramo": etiqueta, "cantidad": sum(1 for d in dias if d is not None and a <= d <= b)})
+    return out
+
+
 @router.get("/estadisticas")
-async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
+async def estadisticas(anio: int = 0, mes: int = 0, desde: str = None, hasta: str = None,
+                       db: Session = Depends(get_db), _u: Usuario = Depends(obtener_usuario_actual)):
     """
-    Estadísticas del período (mes=0 → año completo), generadas solas a partir
-    del trabajo cargado: vistas, demoras, personas, tipos de proceso, juzgados,
-    audiencias, proyectos y totales generales.
+    Estadísticas de un período, generadas solas a partir del trabajo cargado:
+    vistas, demoras, personas, tipos de proceso, juzgados, audiencias, proyectos
+    y totales. El período es `desde`–`hasta` (fechas incluidas, AAAA-MM-DD), o
+    bien `anio` + `mes` (mes=0 → año completo).
+    Incluye la evolución dentro del período (por día, semana o mes según el
+    largo), la comparación con el período anterior del mismo largo y cómo se
+    reparten las demoras.
     """
-    from datetime import date as _date
+    from datetime import date as _date, timedelta
     from collections import Counter, defaultdict
 
-    if mes:
+    if desde and hasta:
+        try:
+            ini = _date.fromisoformat(desde)
+            fin = _date.fromisoformat(hasta) + timedelta(days=1)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Fechas inválidas")
+        if fin <= ini:
+            raise HTTPException(status_code=400, detail="La fecha 'hasta' tiene que ser posterior a 'desde'")
+        if (fin - ini).days > 3700:
+            raise HTTPException(status_code=400, detail="El período no puede superar los 10 años")
+    elif mes:
         ini = _date(anio, mes, 1)
         fin = _date(anio + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1)
     else:
+        anio = anio or hoy().year
         ini, fin = _date(anio, 1, 1), _date(anio + 1, 1, 1)
 
     # Vistas que ENTRARON en el período
@@ -345,7 +410,7 @@ async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _
         .filter(EntradaSalida.subido_lex >= ini, EntradaSalida.subido_lex < fin).all()
     )
     pendientes_rows = (
-        db.query(EntradaSalida.asignacion)
+        db.query(EntradaSalida.asignacion, EntradaSalida.fecha)
         .filter(EntradaSalida.subido_lex.is_(None), EntradaSalida.cancelada.isnot(True)).all()
     )
 
@@ -443,8 +508,34 @@ async def estadisticas(anio: int, mes: int = 0, db: Session = Depends(get_db), _
         "personas_alojadas": db.query(func.count(InternadoLugar.id)).scalar() or 0,
     }
 
+    # Evolución dentro del período, período anterior y distribuciones
+    paso, serie = _serie([e.fecha for e in entradas if e.fecha], [r.subido_lex for r in resueltas_rows if r.subido_lex], ini, fin)
+    largo = fin - ini
+    p_ini, p_fin = ini - largo, ini
+    ant_ing = db.query(func.count(EntradaSalida.id)).filter(EntradaSalida.fecha >= p_ini, EntradaSalida.fecha < p_fin).scalar() or 0
+    ant_res_rows = db.query(EntradaSalida.fecha, EntradaSalida.subido_lex).filter(
+        EntradaSalida.subido_lex >= p_ini, EntradaSalida.subido_lex < p_fin).all()
+    ant_proy = db.query(func.count(Proyecto.id)).filter(Proyecto.fecha_envio >= p_ini, Proyecto.fecha_envio < p_fin).scalar() or 0
+    demoras_dias = [(r.subido_lex - r.fecha).days for r in resueltas_rows if r.fecha and r.subido_lex]
+    hoy_d = hoy()
+    antig_pend = [(hoy_d - r.fecha).days for r in pendientes_rows if r.fecha]
+
     return {
         "anio": anio, "mes": mes,
+        "desde": ini.isoformat(), "hasta": (fin - timedelta(days=1)).isoformat(), "dias": largo.days,
+        "paso": paso,            # dia | semana | mes
+        "serie": serie,
+        "anterior": {
+            "desde": p_ini.isoformat(), "hasta": (p_fin - timedelta(days=1)).isoformat(),
+            "ingresadas": ant_ing, "resueltas": len(ant_res_rows), "proyectos": ant_proy,
+            "demora_total": _prom([(r.subido_lex - r.fecha).days for r in ant_res_rows if r.fecha and r.subido_lex]),
+        },
+        "distribucion_demora": _distribucion(demoras_dias, [
+            ("0 a 2 días", 0, 2), ("3 a 5", 3, 5), ("6 a 10", 6, 10), ("11 a 20", 11, 20),
+            ("21 a 40", 21, 40), ("más de 40", 41, 100000)]),
+        "antiguedad_pendientes": _distribucion(antig_pend, [
+            ("hasta 7 días", 0, 7), ("8 a 15", 8, 15), ("16 a 30", 16, 30), ("31 a 60", 31, 60),
+            ("más de 60", 61, 100000)]),
         "vistas": {
             "ingresadas": len(entradas), "resueltas": len(resueltas_rows),
             "pendientes": len(pendientes_rows), "urgentes": urgentes, "repetidas": repetidas,

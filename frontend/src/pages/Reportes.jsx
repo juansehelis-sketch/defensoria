@@ -1,7 +1,7 @@
 /**
- * Estadísticas de la defensoría, generadas solas a partir del trabajo cargado:
- * vistas, demoras, personas, tipos de proceso, juzgados, audiencias, proyectos
- * y la grilla de asignación de expedientes (editable).
+ * Estadísticas de la defensoría, generadas solas a partir del trabajo cargado
+ * (con gráficos y cualquier período: ver components/Estadisticas.jsx), más la
+ * grilla de asignación, la carga del equipo, la auditoría y las copias.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -10,8 +10,7 @@ import { api, API_BASE, obtenerToken } from '../utils/api'
 import { confirmar, avisar } from '../ui'
 import Icono from '../components/Icono'
 import { fechaHora } from '../utils/format'
-
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+import Estadisticas from '../components/Estadisticas'
 
 export default function Reportes() {
   const navigate = useNavigate()
@@ -21,28 +20,8 @@ export default function Reportes() {
   const [backups, setBackups] = useState([])
   const [nube, setNube] = useState(false)
   const [haciendoBackup, setHaciendoBackup] = useState(false)
-  const ahora = new Date()
-  const [periodo, setPeriodo] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1 })
-  const [stats, setStats] = useState(null)
   const [carga, setCarga] = useState([])
   const [auditoria, setAuditoria] = useState([])
-  async function cargarStats() {
-    try { setStats(await api('/api/reportes/estadisticas', { params: periodo })) } catch (e) { console.error(e) }
-  }
-  useEffect(() => { cargarStats() }, [periodo])
-
-  function descargarExcel() {
-    const url = `${API_BASE}/api/reportes/mensual/excel?anio=${periodo.anio}&mes=${periodo.mes}`
-    fetch(url, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const u = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = u; a.download = `reporte_${periodo.anio}_${String(periodo.mes).padStart(2, '0')}.xlsx`
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u)
-      })
-  }
-
   async function cargarBackups() {
     try { const r = await api('/api/reportes/backups'); setBackups(r.backups || []); setNube(!!r.nube) } catch { /* sin copias locales */ }
   }
@@ -81,11 +60,6 @@ export default function Reportes() {
 
   if (cargando) return <div className="loading-center"><span className="spin" /></div>
 
-  const v = stats?.vistas
-  const dem = stats?.demoras
-  const maxTipo = Math.max(1, ...(stats?.por_tipo || []).map((x) => x.cantidad))
-  const maxJuzgado = Math.max(1, ...(stats?.por_juzgado || []).map((x) => x.cantidad))
-
   return (
     <div className="page">
       <div className="page-header">
@@ -93,142 +67,9 @@ export default function Reportes() {
           <div className="page-title">Estadísticas</div>
           <div className="page-sub">Se generan solas a partir del trabajo cargado</div>
         </div>
-        <div className="row" style={{ gap: 6 }}>
-          <select value={periodo.mes} onChange={(e) => setPeriodo((p) => ({ ...p, mes: Number(e.target.value) }))} style={{ padding: '5px 8px', borderRadius: 6, border: '1.5px solid var(--border)', fontFamily: 'inherit' }}>
-            <option value={0}>Todo el año</option>
-            {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={periodo.anio} onChange={(e) => setPeriodo((p) => ({ ...p, anio: Number(e.target.value) }))} style={{ padding: '5px 8px', borderRadius: 6, border: '1.5px solid var(--border)', fontFamily: 'inherit' }}>
-            {[0, 1, 2].map((d) => { const y = ahora.getFullYear() - d; return <option key={y} value={y}>{y}</option> })}
-          </select>
-          {periodo.mes > 0 && <button className="btn btn-teal btn-sm" onClick={descargarExcel}><Icono nombre="exportar" size={14} />Excel</button>}
-        </div>
       </div>
 
-      {/* Números principales del período */}
-      {v && (
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-          <div className="stat-card"><div className="stat-num">{v.ingresadas}</div><div className="stat-label">Vistas ingresadas</div></div>
-          <div className="stat-card"><div className="stat-num">{v.resueltas}</div><div className="stat-label">Subidas al Lex</div></div>
-          <div className="stat-card"><div className="stat-num">{v.pendientes}</div><div className="stat-label">Pendientes hoy</div></div>
-          <div className="stat-card"><div className="stat-num" style={{ color: v.urgentes ? 'var(--red)' : undefined }}>{v.urgentes}</div><div className="stat-label">Urgentes</div></div>
-          <div className="stat-card"><div className="stat-num">{v.repetidas}</div><div className="stat-label">Vistas repetidas</div></div>
-          <div className="stat-card"><div className="stat-num">{dem?.total ?? '—'}</div><div className="stat-label">Demora promedio (días)</div></div>
-        </div>
-      )}
-
-      {/* Demoras del circuito */}
-      {dem && (dem.total != null || dem.hasta_firma != null || dem.proyectos != null) && (
-        <div className="card">
-          <div className="card-header"><span className="card-title">Demoras promedio del período (días corridos)</span></div>
-          <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-            <FilaDato k="De que entra la vista a subirla al Lex" v={dem.total ?? '—'} />
-            <FilaDato k="De que entra al pase a la firma" v={dem.hasta_firma ?? '—'} />
-            <FilaDato k="De la firma a subirla al Lex" v={dem.firma_a_lex ?? '—'} />
-            <FilaDato k="Del envío del proyecto a su subida" v={dem.proyectos ?? '—'} />
-          </div>
-        </div>
-      )}
-
-      {/* Vistas por persona */}
-      <div className="card">
-        <div className="card-header"><span className="card-title">Vistas por persona</span><span className="tl-meta">del período elegido</span></div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {!stats || stats.por_persona.length === 0 ? <div className="empty">Sin vistas en el período.</div> : (
-            <div className="table-scroll">
-              <table className="data">
-                <thead><tr><th>Persona</th><th>Ingresadas</th><th>Subidas al Lex</th><th>Pendientes</th><th>Urgentes</th><th>Enviadas a la firma</th></tr></thead>
-                <tbody>
-                  {stats.por_persona.map((f) => (
-                    <tr key={f.persona}>
-                      <td>{f.persona}</td>
-                      <td className="mono">{f.ingresadas}</td>
-                      <td className="mono">{f.resueltas}</td>
-                      <td className="mono">{f.pendientes}</td>
-                      <td>{f.urgentes > 0 ? <span className="badge" style={{ background: 'var(--red)', color: '#fff' }}>{f.urgentes}</span> : <span className="dash">—</span>}</td>
-                      <td className="mono">{f.a_la_firma}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }} className="dash-grid">
-        {/* Por tipo de proceso */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">Vistas por tipo de proceso</span><span className="tl-meta">según la carátula</span></div>
-          <div className="card-body">
-            {!stats || stats.por_tipo.length === 0 ? <div className="empty">Sin datos en el período.</div> : stats.por_tipo.map((x) => (
-              <BarraReporte key={x.tipo} etiqueta={x.tipo} valor={x.cantidad} max={maxTipo} />
-            ))}
-          </div>
-        </div>
-
-        {/* Por juzgado */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">Vistas por juzgado</span></div>
-          <div className="card-body">
-            {!stats || stats.por_juzgado.length === 0 ? <div className="empty">Sin datos en el período.</div> : stats.por_juzgado.map((x) => (
-              <BarraReporte key={x.juzgado} etiqueta={x.juzgado === 'Sin dato' ? 'Sin dato' : `Juzgado ${x.juzgado}`} valor={x.cantidad} max={maxJuzgado} color="var(--navy)" />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }} className="dash-grid">
-        {/* Audiencias */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">Audiencias del período</span></div>
-          <div className="card-body">
-            {!stats ? null : (<>
-              <FilaDato k="Total" v={stats.audiencias.total} />
-              {Object.entries(stats.audiencias.por_modalidad).map(([k, c]) => <FilaDato key={k} k={k} v={c} />)}
-              {Object.keys(stats.audiencias.por_persona).length > 0 && <div className="card-title" style={{ margin: '12px 0 6px' }}>Quién asiste</div>}
-              {Object.entries(stats.audiencias.por_persona).map(([k, c]) => <FilaDato key={k} k={k} v={c} />)}
-            </>)}
-          </div>
-        </div>
-
-        {/* A la firma */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">A la firma (período)</span></div>
-          <div className="card-body">
-            {!stats ? null : (<>
-              <FilaDato k="Proyectos enviados" v={stats.proyectos.enviados} />
-              <FilaDato k="Dictámenes subidos" v={stats.proyectos.subidos} />
-              <FilaDato k="En corrección ahora" v={stats.proyectos.en_correccion} />
-              <div className="card-title" style={{ margin: '12px 0 6px' }}>Totales generales</div>
-              <FilaDato k="Expedientes activos" v={stats.totales.expedientes_activos} />
-              <FilaDato k="Expedientes archivados" v={stats.totales.expedientes_archivados} />
-              <FilaDato k="Expedientes nuevos en el período" v={stats.totales.expedientes_nuevos_periodo} />
-              <FilaDato k="Legajos" v={stats.totales.legajos} />
-              <FilaDato k="Instituciones en el mapa" v={stats.totales.instituciones} />
-              <FilaDato k="Personas alojadas registradas" v={stats.totales.personas_alojadas} />
-            </>)}
-          </div>
-        </div>
-      </div>
-
-      {/* Evolución mensual */}
-      <div className="card">
-        <div className="card-header"><span className="card-title">Evolución de los últimos 12 meses</span></div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {!stats ? null : (
-            <div className="table-scroll">
-              <table className="data">
-                <thead><tr><th>Mes</th>{stats.evolucion.map((e) => <th key={`${e.anio}-${e.mes}`} style={{ textAlign: 'center' }}>{MESES[e.mes - 1].slice(0, 3)} {String(e.anio).slice(2)}</th>)}</tr></thead>
-                <tbody>
-                  <tr><td style={{ fontWeight: 600 }}>Ingresadas</td>{stats.evolucion.map((e) => <td key={`i${e.anio}-${e.mes}`} className="mono" style={{ textAlign: 'center' }}>{e.ingresadas}</td>)}</tr>
-                  <tr><td style={{ fontWeight: 600 }}>Subidas al Lex</td>{stats.evolucion.map((e) => <td key={`r${e.anio}-${e.mes}`} className="mono" style={{ textAlign: 'center' }}>{e.resueltas}</td>)}</tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      <Estadisticas />
 
       {/* Grilla de asignación */}
       <GrillaAsignacion />
@@ -457,30 +298,6 @@ function GrillaAsignacion() {
           Los números son las terminaciones del expediente. Se guarda solo al escribir.
         </div>
       </div>
-    </div>
-  )
-}
-
-function BarraReporte({ etiqueta, valor, max, color = 'var(--teal)' }) {
-  const pct = Math.round((valor / max) * 100)
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div className="row" style={{ justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-        <span>{etiqueta}</span>
-        <strong>{valor}</strong>
-      </div>
-      <div style={{ height: 8, background: '#eef0f4', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color }} />
-      </div>
-    </div>
-  )
-}
-
-function FilaDato({ k, v }) {
-  return (
-    <div className="row" style={{ justifyContent: 'space-between', fontSize: 13.5, padding: '4px 0', borderBottom: '1px solid #f1eef0' }}>
-      <span>{k}</span>
-      <strong>{v}</strong>
     </div>
   )
 }
