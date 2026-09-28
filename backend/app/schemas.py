@@ -2,7 +2,7 @@
 Esquemas Pydantic para validación de request/response.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime, date, time
 
@@ -285,6 +285,12 @@ class ProyectoDetalle(Proyecto):
     documento_actualizado: Optional[datetime] = None
     documento_editor: Optional[str] = None
     documento_versiones: List[VersionDocumento] = []
+
+    @field_validator("documento_versiones", mode="before")
+    @classmethod
+    def _versiones_vacias(cls, v):
+        # Los proyectos anteriores al documento editable no tienen versiones (NULL)
+        return v or []
     corregido_por_firmante: Optional[bool] = None  # al subirse: ¿cambió lo que armó el despachante?
     membrete: Optional[dict] = None  # {"encabezado", "pie"} del Word base, para mostrar
 
