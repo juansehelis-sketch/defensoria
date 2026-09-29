@@ -8,6 +8,10 @@ import { useAuth } from '../context/AuthContext'
 import Icono from './Icono'
 import BuscadorGlobal from './BuscadorGlobal'
 import ChatFlotante from './ChatFlotante'
+import AvisoIngresos from './AvisoIngresos'
+
+// Titular del sistema: recibe los avisos de ingresos externos (debe coincidir con el backend)
+const EMAIL_TITULAR = 'jheliszkowski@mpd.gov.ar'
 import { CambiarMiClave } from '../pages/Usuarios'
 
 // Solapas visibles para todos los roles.
@@ -71,6 +75,7 @@ export default function Layout() {
 
       <Outlet />
       <ChatFlotante />
+      {usuario?.email === EMAIL_TITULAR && <AvisoIngresos />}
       {verClave && <CambiarMiClave onClose={() => setVerClave(false)} />}
     </>
   )

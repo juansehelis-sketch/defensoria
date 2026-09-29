@@ -47,6 +47,10 @@ export default function Arranque({ children }) {
         <div style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>
           Iniciando el sistema
         </div>
+        <div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+          El servidor se apaga solo después de 15 minutos sin uso. Al volver a entrar tarda
+          entre 30 segundos y 2 minutos en encenderse. No hace falta hacer nada: se abre solo.
+        </div>
       </div>
     </div>
   )

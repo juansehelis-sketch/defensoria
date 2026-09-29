@@ -15,6 +15,9 @@ from app.utils.deps import obtener_usuario_actual, requerir_rol
 ADMIN_USUARIOS = ("admin", "defensora")
 # Único usuario que puede ver los ingresos (fecha/hora/IP/ubicación) del equipo.
 EMAIL_VE_INGRESOS = "jheliszkowski@mpd.gov.ar"
+# Cuentas de demostración: se usan para mostrar el sistema (ej. a la DGN). Cada
+# ingreso con ellas le avisa al titular, para saber cuándo entra alguien de afuera.
+EMAILS_DEMO = ("prueba@mpd.gov.ar", "agustina.demo@mpd.gov.ar")
 from app.config import settings
 from app.utils.tiempo import ahora
 
@@ -68,7 +71,7 @@ def _dispositivo(ua: str) -> str:
 
 def _registrar_intento(db: Session, request: Request, email: str, usuario, exito: bool):
     ua = request.headers.get("user-agent", "")
-    db.add(RegistroIngreso(
+    registro = RegistroIngreso(
         usuario_id=usuario.id if usuario else None,
         email=(email or "")[:120],
         exito=exito,
@@ -76,7 +79,85 @@ def _registrar_intento(db: Session, request: Request, email: str, usuario, exito
         ip=_ip_de(request),
         dispositivo=_dispositivo(ua),
         navegador=ua[:300],
-    ))
+    )
+    db.add(registro)
+    db.flush()
+    return registro
+
+
+def _datos_de_ip(ip: str | None) -> dict:
+    """Lugar, empresa de internet y tipo de conexión de una IP (ip-api, sin clave)."""
+    if _es_privada(ip):
+        return {"lugar": "Red interna", "proveedor": None, "tipo_conexion": None}
+    try:
+        import urllib.request, json
+        url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,district,isp,org,mobile,proxy,hosting"
+        with urllib.request.urlopen(url, timeout=5) as r:
+            d = json.loads(r.read().decode())
+    except Exception:
+        return {}
+    if d.get("status") != "success":
+        return {"lugar": "no se pudo estimar"}
+    org, isp = (d.get("org") or "").strip(), (d.get("isp") or "").strip()
+    return {
+        "lugar": ", ".join(x for x in (d.get("district"), d.get("city"), d.get("regionName"), d.get("country")) if x) or "—",
+        "proveedor": (f"{org} ({isp})" if org and isp and org.lower() != isp.lower() else (org or isp)) or None,
+        "tipo_conexion": "datos móviles" if d.get("mobile") else "VPN / servidor" if (d.get("proxy") or d.get("hosting")) else None,
+    }
+
+
+def _avisar_ingreso(registro_id: int, motivo: str):
+    """Aviso al titular (en el sistema y, si hay correo configurado, por mail).
+    Corre aparte para no demorar el login (consulta la ubicación de la IP)."""
+    def trabajo():
+        from app.database import SessionLocal
+        from app.models import Notificacion
+        db = SessionLocal()
+        try:
+            r = db.query(RegistroIngreso).filter(RegistroIngreso.id == registro_id).first()
+            titular = db.query(Usuario).filter(Usuario.email == EMAIL_VE_INGRESOS).first()
+            if not r or not titular:
+                return
+            for k, v in _datos_de_ip(r.ip).items():
+                setattr(r, k, v)
+            # ¿Salió de una conexión desde la que entró el titular? Entonces probablemente fue él
+            mismo = bool(r.ip) and db.query(RegistroIngreso).filter(
+                RegistroIngreso.usuario_id == titular.id, RegistroIngreso.ip == r.ip).first() is not None
+            if not mismo and r.ip and titular.ultimo_ingreso_ip == r.ip:
+                mismo = True
+            partes = [r.fecha.strftime("%d/%m %H:%M:%S"), r.dispositivo or "dispositivo desconocido",
+                      r.proveedor or "conexión desconocida"]
+            if r.tipo_conexion:
+                partes.append(r.tipo_conexion)
+            if r.lugar:
+                partes.append(r.lugar)
+            detalle = " · ".join(partes)
+            aviso = f"{motivo} — {detalle}" + (" · desde tu misma conexión (probablemente vos)" if mismo else "")
+            db.add(Notificacion(usuario_id=titular.id, tipo="ingreso_externo", contenido=aviso[:480]))
+            db.commit()
+            from app.services import mail
+            if mail.mail_configurado():
+                destino = settings.ALERTA_INGRESOS_EMAIL or titular.email
+                try:
+                    mail.enviar(destino, f"Aviso de ingreso al Sistema de Gestión: {motivo}",
+                                f"{motivo}\n\nFecha y hora: {r.fecha.strftime('%d/%m/%Y %H:%M:%S')}\n"
+                                f"Dispositivo: {r.dispositivo or '—'}\nConexión: {r.proveedor or '—'}"
+                                f"{' (' + r.tipo_conexion + ')' if r.tipo_conexion else ''}\n"
+                                f"Ubicación aproximada: {r.lugar or '—'}\nIP: {r.ip or '—'}\n"
+                                + ("\nSalió de una conexión desde la que entraste vos: probablemente fuiste vos.\n" if mismo else ""))
+                except Exception as e:
+                    print(f"[!] No se pudo mandar el mail de aviso de ingreso: {e}")
+        except Exception as e:
+            print(f"[!] No se pudo generar el aviso de ingreso: {e}")
+        finally:
+            db.close()
+
+    import threading
+    threading.Thread(target=trabajo, daemon=True).start()
+
+
+def _es_verificacion(request: Request) -> bool:
+    return "verificacion-automatica" in request.headers.get("user-agent", "")
 
 
 def _resolver_ubicaciones(db: Session, registros):
@@ -129,8 +210,10 @@ async def login(usuario_login: UsuarioLogin, request: Request, db: Session = Dep
     usuario = db.query(Usuario).filter(Usuario.email == usuario_login.email).first()
 
     if not usuario or not verificar_contraseña(usuario_login.contraseña, usuario.contraseña_hash):
-        _registrar_intento(db, request, usuario_login.email, usuario, False)
+        reg = _registrar_intento(db, request, usuario_login.email, usuario, False)
         db.commit()
+        if usuario is None and not _es_verificacion(request):
+            _avisar_ingreso(reg.id, f"Intento de ingreso con un usuario que no existe ({(usuario_login.email or '')[:60]})")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos"
@@ -148,8 +231,10 @@ async def login(usuario_login: UsuarioLogin, request: Request, db: Session = Dep
     usuario.ultimo_ingreso = ahora()
     usuario.ultimo_ingreso_ip = _ip_de(request)
     usuario.ultimo_ingreso_lugar = None
-    _registrar_intento(db, request, usuario_login.email, usuario, True)
+    reg = _registrar_intento(db, request, usuario_login.email, usuario, True)
     db.commit()
+    if usuario.email in EMAILS_DEMO and not _es_verificacion(request):
+        _avisar_ingreso(reg.id, f"Ingresó alguien con la cuenta de demostración «{usuario.nombre}»")
 
     # Crear token
     access_token = crear_access_token(
